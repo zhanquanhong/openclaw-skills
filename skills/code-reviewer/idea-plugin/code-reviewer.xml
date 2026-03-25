@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  IDEA 外部工具配置 - Code Reviewer
+  安装方法：
+  1. 将此文件复制到 IDEA 配置目录：
+     - Windows: %USERPROFILE%\.IntelliJIdea<version>\config\tools\
+     - macOS: ~/Library/Application Support/IntelliJIdea<version>/config/tools/
+     - Linux: ~/.IntelliJIdea<version>/config/tools/
+  
+  2. 重启 IDEA
+  
+  3. 在项目中右键 → External Tools → Code Reviewer
+-->
+<toolSet name="Code Reviewer">
+  <tool name="Code Reviewer - Full Scan" showInMainMenu="false" showInEditor="true" 
+        showInProject="true" showInFavorites="false" description="代码走读 - 完整扫描" 
+        synchronizeChildren="false" activateToolWindow="false">
+    <program>$PROJECT_DIR$/../skills/code-reviewer/scripts/code-reviewer.py</program>
+    <parameters>--language auto --output markdown --output-file $PROJECT_DIR$/code-review-report.md $PROJECT_DIR$</parameters>
+    <workingDirectory>$PROJECT_DIR$</workingDirectory>
+  </tool>
+  
+  <tool name="Code Reviewer - Security Only" showInMainMenu="false" showInEditor="true" 
+        showInProject="true" showInFavorites="false" description="代码走读 - 安全检查" 
+        synchronizeChildren="false" activateToolWindow="false">
+    <program>$PROJECT_DIR$/../skills/code-reviewer/scripts/code-reviewer.py</program>
+    <parameters>--language auto --output markdown --output-file $PROJECT_DIR$/security-review-report.md $PROJECT_DIR$</parameters>
+    <workingDirectory>$PROJECT_DIR$</workingDirectory>
+  </tool>
+  
+  <tool name="Code Reviewer - Current File" showInMainMenu="false" showInEditor="true" 
+        showInProject="false" showInFavorites="false" description="代码走读 - 当前文件" 
+        synchronizeChildren="false" activateToolWindow="false">
+    <program>$PROJECT_DIR$/../skills/code-reviewer/scripts/code-reviewer.py</program>
+    <parameters>--language auto --output markdown --output-file $FileDir$/review-report.md $FilePath$</parameters>
+    <workingDirectory>$FileDir$</workingDirectory>
+  </tool>
+</toolSet>
