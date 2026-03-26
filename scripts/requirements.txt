@@ -1,0 +1,17 @@
+# 图片压缩 API 服务依赖
+# 安装：pip install -r requirements.txt
+
+# Web 框架
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+python-multipart>=0.0.6
+
+# 图像处理核心库
+Pillow>=10.2.0
+pillow-heif>=0.15.0  # HEIC/HEIF 格式支持
+
+# HTTP 客户端 (用于 URL 压缩)
+httpx>=0.26.0
+
+# 可选：性能优化
+# pillow-simd  # SIMD 加速的 Pillow (可选，性能提升 30-50%)
