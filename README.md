@@ -4,6 +4,12 @@
 
 ## 功能特性
 
+### v2.0 新增
+- ✅ **Google 风格 AI 压缩算法** - 感知质量优化，边缘保持，智能降采样
+- ✅ **双算法对比** - 同时测试传统算法和 Google 算法的效果
+- ✅ **多质量模式** - fast/balanced/quality/google 四种模式可选
+
+### 原有功能
 - ✅ 支持 12 种图片格式：bmp, gif, heic, jfif, jpeg, jpg, livp, png, ppm, tif, tiff, webp
 - ✅ 目标大小控制 - 自动迭代压缩直到达到指定大小
 - ✅ 高并发 - FastAPI + 线程池，支持 200+ 张/秒
@@ -37,6 +43,8 @@ pip3 install -r requirements.txt
 
 ### curl 调用
 
+#### 传统算法压缩
+
 ```bash
 # 文件压缩
 curl -X POST "http://localhost:8765/compress" \
@@ -44,13 +52,67 @@ curl -X POST "http://localhost:8765/compress" \
   -F "quality=80" \
   -F "max_size_kb=500" \
   -o compressed.jpg
+```
 
-# URL 压缩
+#### Google 算法压缩 (v2.0)
+
+```bash
+# Google 风格压缩 - 感知质量最优
+curl -X POST "http://localhost:8765/compress" \
+  -F "file=@image.jpg" \
+  -F "quality=85" \
+  -F "algorithm=google" \
+  -F "quality_mode=google" \
+  -o compressed_google.jpg
+
+# 快速模式 - 适合实时场景
+curl -X POST "http://localhost:8765/compress" \
+  -F "file=@image.jpg" \
+  -F "algorithm=google" \
+  -F "quality_mode=fast" \
+  -o compressed_fast.jpg
+```
+
+#### 算法对比 (v2.0)
+
+```bash
+# 对比传统算法和 Google 算法
+curl -X POST "http://localhost:8765/compress/compare" \
+  -F "file=@image.jpg" \
+  -F "quality=85" | python3 -m json.tool
+```
+
+输出示例:
+```json
+{
+  "original_size": 102400,
+  "traditional": {
+    "compressed_size": 40960,
+    "ratio": "40.0%",
+    "elapsed_ms": 150.5
+  },
+  "google": {
+    "compressed_size": 35840,
+    "ratio": "35.0%",
+    "elapsed_ms": 180.2,
+    "quality_mode": "google"
+  },
+  "comparison": {
+    "size_diff": 5120,
+    "speed_diff": 29.7
+  }
+}
+```
+
+#### URL 压缩
+```bash
 curl -X POST "http://localhost:8765/compress/url" \
   -F "url=https://example.com/image.jpg" \
   -F "quality=80"
+```
 
-# Base64 压缩
+#### Base64 压缩
+```bash
 curl -X POST "http://localhost:8765/compress/base64" \
   -H "Content-Type: application/json" \
   -d '{"image_base64": "data:image/jpeg;base64,...", "quality": 75}'
