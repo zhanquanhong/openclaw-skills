@@ -55,32 +55,48 @@ if not exist "%WORKSPACE_DIR%\cursor-tasks" mkdir "%WORKSPACE_DIR%\cursor-tasks"
 if not exist "%WORKSPACE_DIR%\docs" mkdir "%WORKSPACE_DIR%\docs"
 echo.
 
-:: Copy script files
+:: Copy script files - Using simple copy command
 echo [3/6] Copying script files...
 set SCRIPT_DIR=%~dp0
 
-xcopy /Y /E "%SCRIPT_DIR%scripts" "%WORKSPACE_DIR%\scripts" >nul
+echo   Copying scripts...
+copy /Y /B "%SCRIPT_DIR%scripts\*.py" "%WORKSPACE_DIR%\scripts\" >nul 2>&1
 if errorlevel 1 (
-    echo [ERROR] Failed to copy scripts
-    pause
-    exit /b 1
-)
-echo [OK] Scripts copied to: %WORKSPACE_DIR%\scripts
-
-if exist "%SCRIPT_DIR%idea-plugin" (
-    xcopy /Y /E "%SCRIPT_DIR%idea-plugin" "%WORKSPACE_DIR%\idea-plugin" >nul
-    echo [OK] IDEA config copied to: %WORKSPACE_DIR%\idea-plugin
+    echo [WARN] Some script files failed to copy
+) else (
+    echo   [OK] scripts/
 )
 
-if exist "%SCRIPT_DIR%cursor-tasks" (
-    xcopy /Y /E "%SCRIPT_DIR%cursor-tasks" "%WORKSPACE_DIR%\cursor-tasks" >nul
-    echo [OK] Cursor config copied to: %WORKSPACE_DIR%\cursor-tasks
+if exist "%SCRIPT_DIR%idea-plugin\" (
+    echo   Copying idea-plugin...
+    copy /Y /B "%SCRIPT_DIR%idea-plugin\*.xml" "%WORKSPACE_DIR%\idea-plugin\" >nul 2>&1
+    if errorlevel 1 (
+        echo   [WARN] Some idea-plugin files failed to copy
+    ) else (
+        echo   [OK] idea-plugin/
+    )
 )
 
-if exist "%SCRIPT_DIR%docs" (
-    xcopy /Y /E "%SCRIPT_DIR%docs" "%WORKSPACE_DIR%\docs" >nul
-    echo [OK] Docs copied to: %WORKSPACE_DIR%\docs
+if exist "%SCRIPT_DIR%cursor-tasks\" (
+    echo   Copying cursor-tasks...
+    copy /Y /B "%SCRIPT_DIR%cursor-tasks\*.json" "%WORKSPACE_DIR%\cursor-tasks\" >nul 2>&1
+    if errorlevel 1 (
+        echo   [WARN] Some cursor-tasks files failed to copy
+    ) else (
+        echo   [OK] cursor-tasks/
+    )
 )
+
+if exist "%SCRIPT_DIR%docs\" (
+    echo   Copying docs...
+    copy /Y /B "%SCRIPT_DIR%docs\*.md" "%WORKSPACE_DIR%\docs\" >nul 2>&1
+    if errorlevel 1 (
+        echo   [WARN] Some docs files failed to copy
+    ) else (
+        echo   [OK] docs/
+    )
+)
+echo [OK] Copy completed
 echo.
 
 :: Create launcher script
