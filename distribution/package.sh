@@ -9,7 +9,7 @@ echo "===================================="
 echo ""
 
 # 配置
-VERSION="1.0.2"
+VERSION="1.0.3"
 PACKAGE_NAME="teamclaw-code-reviewer-v${VERSION}"
 WORKSPACE_DIR="$HOME/.openclaw/workspace"
 DIST_DIR="$WORKSPACE_DIR/distribution"
