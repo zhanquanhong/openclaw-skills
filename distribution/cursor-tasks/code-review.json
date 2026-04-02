@@ -1,0 +1,85 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Code Review (Multi-Agent)",
+      "type": "shell",
+      "command": "python3",
+      "args": [
+        "${home}/.openclaw/workspace/scripts/code-review-multi-agent.py",
+        "${file}",
+        "--multi-agent"
+      ],
+      "group": {
+        "kind": "test",
+        "isDefault": false
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      },
+      "detail": "TeamClaw 代码审查 - 多代理并行模式"
+    },
+    {
+      "label": "Code Review (Single Agent)",
+      "type": "shell",
+      "command": "python3",
+      "args": [
+        "${home}/.openclaw/workspace/scripts/code-review-multi-agent.py",
+        "${file}"
+      ],
+      "group": {
+        "kind": "test",
+        "isDefault": false
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      },
+      "detail": "TeamClaw 代码审查 - 单代理串行模式"
+    },
+    {
+      "label": "Code Review (Security Only)",
+      "type": "shell",
+      "command": "python3",
+      "args": [
+        "${home}/.openclaw/workspace/scripts/code-review-multi-agent.py",
+        "${file}",
+        "--focus",
+        "security"
+      ],
+      "group": {
+        "kind": "test",
+        "isDefault": false
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      },
+      "detail": "TeamClaw 代码审查 - 仅安全检查"
+    },
+    {
+      "label": "Code Review (Full Project)",
+      "type": "shell",
+      "command": "python3",
+      "args": [
+        "${home}/.openclaw/workspace/scripts/code-review-multi-agent.py",
+        "${workspaceFolder}",
+        "--multi-agent"
+      ],
+      "group": {
+        "kind": "test",
+        "isDefault": false
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      },
+      "detail": "TeamClaw 代码审查 - 审查整个项目"
+    }
+  ]
+}
