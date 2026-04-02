@@ -2,7 +2,7 @@
 chcp 65001 >nul
 echo ==========================================
 echo    TeamClaw Code Reviewer - Installer
-echo    Version: v1.0.0
+echo    Version: v1.0.2
 echo ==========================================
 echo.
 
