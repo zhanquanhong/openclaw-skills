@@ -1,0 +1,32 @@
+<toolSet name="Code Reviewer">
+  <tool name="Code Review (Multi-Agent)" description="代码审查 - 多代理并行模式" showInMainMenu="false" showInEditor="true" showInProject="true" showInFavorites="true">
+    <option name="PROGRAM" value="python" />
+    <option name="PROGRAM_ARGS" value="$USER_HOME$/.openclaw/workspace/scripts/code-review-multi-agent.py $FilePath$ --multi-agent" />
+    <option name="WORKING_DIRECTORY" value="$USER_HOME$/.openclaw/workspace" />
+    <option name="USE_CLASSPATH_OF_MODULE" value="false" />
+  </tool>
+  <tool name="Code Review (Single Agent)" description="代码审查 - 单代理模式" showInMainMenu="false" showInEditor="true" showInProject="true" showInFavorites="true">
+    <option name="PROGRAM" value="python" />
+    <option name="PROGRAM_ARGS" value="$USER_HOME$/.openclaw/workspace/scripts/code-review-multi-agent.py $FilePath$" />
+    <option name="WORKING_DIRECTORY" value="$USER_HOME$/.openclaw/workspace" />
+    <option name="USE_CLASSPATH_OF_MODULE" value="false" />
+  </tool>
+  <tool name="Code Review (Security Only)" description="代码审查 - 仅安全检查" showInMainMenu="false" showInEditor="true" showInProject="true" showInFavorites="true">
+    <option name="PROGRAM" value="python" />
+    <option name="PROGRAM_ARGS" value="$USER_HOME$/.openclaw/workspace/scripts/code-review-multi-agent.py $FilePath$ --focus security" />
+    <option name="WORKING_DIRECTORY" value="$USER_HOME$/.openclaw/workspace" />
+    <option name="USE_CLASSPATH_OF_MODULE" value="false" />
+  </tool>
+  <tool name="Code Review (Full Project)" description="代码审查 - 整个项目" showInMainMenu="false" showInEditor="false" showInProject="true" showInFavorites="true">
+    <option name="PROGRAM" value="python" />
+    <option name="PROGRAM_ARGS" value="$USER_HOME$/.openclaw/workspace/scripts/code-review-multi-agent.py $ProjectFileDir$ --multi-agent" />
+    <option name="WORKING_DIRECTORY" value="$USER_HOME$/.openclaw/workspace" />
+    <option name="USE_CLASSPATH_OF_MODULE" value="false" />
+  </tool>
+  <tool name="Open Review Reports" description="打开审查报告目录" showInMainMenu="false" showInEditor="false" showInProject="true" showInFavorites="true">
+    <option name="PROGRAM" value="explorer" />
+    <option name="PROGRAM_ARGS" value="$USER_HOME$/.openclaw/workspace/code-reports" />
+    <option name="WORKING_DIRECTORY" value="$USER_HOME$/.openclaw/workspace/code-reports" />
+    <option name="USE_CLASSPATH_OF_MODULE" value="false" />
+  </tool>
+</toolSet>
