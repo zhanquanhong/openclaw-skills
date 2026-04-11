@@ -1,0 +1,48 @@
+# WBS 规范配置 - 云端 OpenClaw 三期
+
+project_name: "云端 OpenClaw 三期"
+
+# 技术方案文档
+tech_docs:
+  - path: "ai-task-system/docs/plan/云端 OpenClaw 三期_AgenticX_WBS_v3.0.md"
+    type: "markdown"
+
+# WBS 规范
+wbs_spec:
+  interface_count: 26
+  task_count: 78
+  sheet_count: 5
+  sheets:
+    - name: "接口级 WBS 总览"
+      required: true
+    - name: "任务级 WBS 总览"
+      required: true
+    - name: "周负载统计"
+      required: true
+    - name: "甘特图（按模块分组）"
+      required: true
+    - name: "资源配置"
+      required: true
+  
+  gantt:
+    columns: 23
+    start_weekday: 3  # 从周三开始（用户指导）
+    total_weeks: 3
+  
+  validation_rules:
+    - rule: "第 1 周周一/周二必须是灰色"
+      color: "F0F0F0"
+      weeks: [1]
+      weekdays: [1, 2]
+    
+    - rule: "任务开始前的天数用灰色显示"
+      color: "F0F0F0"
+      condition: "before_start"
+    
+    - rule: "任务进行中用蓝色显示"
+      color: "92CDDC"
+      condition: "in_progress"
+    
+    - rule: "每周显示周一到周日（7 天）"
+      weekdays_count: 7
+      source: "用户指导 2026-04-11"

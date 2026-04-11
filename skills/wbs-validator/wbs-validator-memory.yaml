@@ -1,0 +1,44 @@
+# WBS 验证 Skill - 记忆库
+# 选择性记忆：只记忆有意义并得到用户认可的内容
+
+rules:
+  # ═══════════════════════════════════════════════════
+  # ✅ 已记忆的规则（示例）
+  # ═══════════════════════════════════════════════════
+  
+  - date: 2026-04-11T16:35:00
+    user_instruction: "甘特图应该从周三开始"
+    rule_type: "gantt.start_weekday"
+    rule_value: 3
+    applied_to: ["云端 OpenClaw 三期"]
+    user_approved: true
+    note: "后端资源从周三开始投入，周一、周二显示灰色"
+  
+  - date: 2026-04-11T16:57:00
+    user_instruction: "每周应该固定从周一到周日显示"
+    rule_type: "gantt.display_weekdays"
+    rule_value: 7
+    applied_to: ["云端 OpenClaw 三期"]
+    user_approved: true
+    note: "每周显示 7 天（周一到周日），不是 5 天"
+  
+  - date: 2026-04-11T17:21:00
+    user_instruction: "为什么还有周一周二标蓝色的色块"
+    rule_type: "gantt.color.before_start"
+    rule_value: "F0F0F0"
+    applied_to: ["云端 OpenClaw 三期"]
+    user_approved: true
+    note: "任务开始前的天数用浅灰色显示（F0F0F0），不是蓝色"
+  
+  # ═══════════════════════════════════════════════════
+  # ❌ 不记忆的内容（示例）
+  # ═══════════════════════════════════════════════════
+  # - "你好" - 闲聊，跳过
+  # - "谢谢" - 闲聊，跳过
+  # - "甘特图从周三开始" (重复) - 已存在，跳过
+
+# 记忆统计
+stats:
+  total_rules: 3
+  last_updated: 2026-04-11T17:21:00
+  projects: ["云端 OpenClaw 三期"]

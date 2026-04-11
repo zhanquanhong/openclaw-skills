@@ -1,0 +1,75 @@
+# WBS 规范配置文件模板
+# 每个项目一个配置文件
+
+project_name: "项目名称"
+
+# ═══════════════════════════════════════════════════
+# 技术方案文档（支持 PDF/Markdown/Word）
+# ═══════════════════════════════════════════════════
+
+tech_docs:
+  - path: "docs/技术方案.pdf"
+    type: "pdf"
+  - path: "docs/技术方案.md"
+    type: "markdown"
+  - path: "docs/技术方案.docx"
+    type: "word"
+
+# ═══════════════════════════════════════════════════
+# WBS 规范
+# ═══════════════════════════════════════════════════
+
+wbs_spec:
+  # 接口数量
+  interface_count: 26
+  
+  # 详细任务数量
+  task_count: 78
+  
+  # Sheet 配置
+  sheet_count: 5
+  sheets:
+    - name: "接口级 WBS 总览"
+      required: true
+    - name: "任务级 WBS 总览"
+      required: true
+    - name: "周负载统计"
+      required: true
+    - name: "甘特图（按模块分组）"
+      required: true
+    - name: "资源配置"
+      required: true
+  
+  # 甘特图配置
+  gantt:
+    columns: 23  # 23 列 = 任务 + 负责人 + 21 天 (3 周×7 天)
+    start_weekday: 1  # 从周几开始（1=周一，2=周二，...，7=周日）
+    total_weeks: 3  # 总工期周数
+  
+  # 验证规则
+  validation_rules:
+    - rule: "第 1 周周一/周二必须是灰色"
+      color: "F0F0F0"
+      weeks: [1]
+      weekdays: [1, 2]  # 周一、周二
+    
+    - rule: "任务开始前的天数用灰色显示"
+      color: "F0F0F0"
+      condition: "before_start"
+    
+    - rule: "任务进行中用蓝色显示"
+      color: "92CDDC"
+      condition: "in_progress"
+
+# ═══════════════════════════════════════════════════
+# 使用说明
+# ═══════════════════════════════════════════════════
+# 
+# 1. 复制此模板为新项目创建配置文件
+#    cp wbs-spec-template.yaml wbs-spec-新项目.yaml
+# 
+# 2. 修改 project_name 和 wbs_spec 配置
+# 
+# 3. 验证器会自动加载配置并应用规则
+# 
+# 4. 用户的指导会自动添加到记忆库（wbs-validator-memory.yaml）
