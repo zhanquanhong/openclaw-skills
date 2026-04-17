@@ -22,6 +22,19 @@ python3 generate_wbs.py --export my_whitelist.yaml
 
 ---
 
+## 📁 默认输出路径
+
+**默认**：`./output/`（当前目录下的 output 文件夹）
+
+**示例**：
+```bash
+cd skills/wbs-skill
+python3 generate_wbs.py 技术方案.pdf
+# 输出：skills/wbs-skill/output/WBS_技术方案_xxx.xlsx
+```
+
+---
+
 ## 📚 核心特性
 
 | 特性 | 说明 |

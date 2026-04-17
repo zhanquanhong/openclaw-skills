@@ -17,6 +17,40 @@ python3 generate_wbs.py /path/to/技术方案.pdf --no-user
 
 ---
 
+## 📁 默认输出路径
+
+**默认输出目录**：`./output/`（当前目录下的 output 文件夹）
+
+**示例**：
+```bash
+# 在 wbs-skill 目录下运行
+cd skills/wbs-skill
+python3 generate_wbs.py 技术方案.pdf
+
+# 输出文件位置：
+# skills/wbs-skill/output/WBS_技术方案_20260417_182700.xlsx
+```
+
+**如果在 openclaw-workspace 根目录运行**：
+```bash
+cd /path/to/openclaw-workspace
+python3 skills/wbs-skill/generate_wbs.py 技术方案.pdf
+
+# 输出文件位置：
+# /path/to/openclaw-workspace/output/WBS_技术方案_20260417_182700.xlsx
+```
+
+**自定义输出目录**：
+```bash
+# 输出到指定目录
+python3 generate_wbs.py 技术方案.pdf -o /path/to/my-output/
+
+# 输出到桌面
+python3 generate_wbs.py 技术方案.pdf -o ~/Desktop/
+```
+
+---
+
 ## 📚 白名单机制（方案 C）
 
 ### 两种白名单

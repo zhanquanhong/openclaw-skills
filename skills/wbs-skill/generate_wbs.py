@@ -6,6 +6,7 @@ import os
 import re
 import json
 from datetime import datetime
+from pathlib import Path
 
 sys.path.insert(0, '/home/admin/.openclaw/workspace/skills/wbs-skill')
 
@@ -29,9 +30,15 @@ def generate_wbs(pdf_path: str, output_dir: str = None, use_user_whitelist: bool
         print(f'❌ 文件不存在：{pdf_path}')
         sys.exit(1)
     
-    # 2. 设置输出目录
+    # 2. 设置输出目录（默认：当前目录下的 output/）
     if not output_dir:
-        output_dir = '/home/admin/.openclaw/workspace/test-data/output'
+        # 优先使用 workspace/test-data/output（如果存在）
+        workspace_output = Path(__file__).parent.parent.parent / 'test-data' / 'output'
+        if workspace_output.exists():
+            output_dir = str(workspace_output)
+        else:
+            # 否则使用当前目录下的 output/
+            output_dir = './output'
     os.makedirs(output_dir, exist_ok=True)
     
     # 3. 加载白名单
