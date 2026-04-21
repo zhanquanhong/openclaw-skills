@@ -1,0 +1,25 @@
+{
+  "name": "tech-doc-validator",
+  "display_name": "技术方案验证器",
+  "version": "1.0.0",
+  "description": "验证技术方案文档规范性，支持 5 个核心类型识别，JAVA 技术栈优先",
+  "author": "AI 助手",
+  "commands": [
+    {
+      "name": "validate",
+      "aliases": ["验证", "check"],
+      "description": "验证技术方案规范性",
+      "usage": "/validate [文档链接|文本内容]",
+      "examples": [
+        "/validate https://feishu.cn/docx/xxx",
+        "/validate --strict https://feishu.cn/docx/xxx",
+        "/validate --json https://feishu.cn/docx/xxx"
+      ]
+    }
+  ],
+  "config": {
+    "tech_stack": "java",
+    "pass_score": 70,
+    "timeout": 30
+  }
+}

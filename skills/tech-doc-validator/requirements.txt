@@ -1,0 +1,17 @@
+# 技术方案验证器依赖
+# 生产级 - 版本锁定
+
+# 核心依赖
+PyYAML>=6.0
+aiohttp>=3.9.0
+pdfplumber>=0.10.0
+
+# 测试依赖
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+
+# 代码质量
+flake8>=6.1.0
+black>=23.0.0
+mypy>=1.5.0

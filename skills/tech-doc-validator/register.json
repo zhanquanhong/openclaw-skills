@@ -1,0 +1,49 @@
+# 技术方案验证器 Skill 注册配置
+# 添加到 OpenClaw 系统
+
+{
+  "name": "tech-doc-validator",
+  "displayName": "技术方案验证器",
+  "version": "1.0.0",
+  "description": "验证技术方案文档规范性，支持 PDF/Markdown/飞书文档，自动输出完整正确示例",
+  "author": "OpenClaw",
+  "enabled": true,
+  
+  "entry": "/home/admin/.openclaw/workspace/skills/tech-doc-validator/skill_main.py",
+  "workingDir": "/home/admin/.openclaw/workspace/skills/tech-doc-validator",
+  
+  "triggers": [
+    {
+      "type": "command",
+      "command": "/validate",
+      "aliases": ["/验证", "/check"],
+      "description": "验证技术方案规范性"
+    },
+    {
+      "type": "file",
+      "extensions": [".pdf", ".md"],
+      "description": "上传 PDF 或 Markdown 文件自动验证"
+    }
+  ],
+  
+  "config": {
+    "techStack": "java",
+    "passScore": 70,
+    "timeout": 30,
+    "maxMessageLength": 4096,
+    "splitMessages": true
+  },
+  
+  "feishu": {
+    "appId": "cli_a93a64c12179dbcb",
+    "autoReply": true,
+    "splitLongMessages": true,
+    "sendAsCard": false
+  },
+  
+  "outputs": {
+    "format": "markdown",
+    "includeExamples": true,
+    "splitThreshold": 4000
+  }
+}

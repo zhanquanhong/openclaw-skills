@@ -1,0 +1,43 @@
+# 技术方案验证器配置
+version: "1.0.0"
+tech_stack: java
+
+# 评分配置
+scoring:
+  base_score: 70  # 5 个必填项满分
+  bonus_score: 30  # 3 个加分项满分
+  pass_score: 70   # 通过分数线
+
+# 必填项权重（总计 70 分）
+required_checks:
+  task_type: 14
+  dependencies: 14
+  api_definition: 14
+  implementation: 14
+  acceptance_criteria: 14
+
+# 加分项权重（总计 30 分）
+bonus_checks:
+  effort: 10
+  priority: 10
+  background: 10
+
+# 超时配置
+timeout:
+  api_call: 10  # 秒
+  validation: 30  # 秒
+
+# 重试配置
+retry:
+  max_attempts: 3
+  delay: 1  # 秒
+
+# 缓存配置
+cache:
+  enabled: true
+  ttl: 300  # 5 分钟
+
+# 日志配置
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

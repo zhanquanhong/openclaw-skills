@@ -1,0 +1,41 @@
+{
+  "name": "tech-doc-validator",
+  "version": "1.0.0",
+  "description": "技术方案规范验证器 - 验证技术方案文档规范性，支持 PDF/Markdown/飞书文档",
+  "author": "OpenClaw",
+  "apiVersion": "v1",
+  "capabilities": [
+    "tech_doc_validation",
+    "pdf_parsing",
+    "feishu_integration",
+    "wbs_readiness_check"
+  ],
+  "inputs": [
+    {"name": "document", "type": "string", "required": true, "description": "飞书文档链接/PDF 文件/Markdown 文本"},
+    {"name": "tech_stack", "type": "string", "required": false, "default": "java", "description": "技术栈：java/python/frontend"}
+  ],
+  "outputs": [
+    {"name": "validation_report", "type": "object", "description": "验证报告（合规率/问题清单/正确示例）"},
+    {"name": "score", "type": "number", "description": "合规率评分 (0-100)"},
+    {"name": "wbs_ready", "type": "boolean", "description": "是否可生成 WBS"}
+  ],
+  "config": {
+    "timeout": "30s",
+    "retryCount": 3,
+    "passScore": 70,
+    "techStack": "java"
+  },
+  "feishu": {
+    "appId": "cli_a93a64c12179dbcb",
+    "commands": [
+      {
+        "name": "validate",
+        "aliases": ["验证", "check"],
+        "description": "验证技术方案规范性",
+        "usage": "/validate [文档链接 | 文件 | 文本]"
+      }
+    ],
+    "autoReply": true,
+    "maxMessageLength": 4096
+  }
+}
