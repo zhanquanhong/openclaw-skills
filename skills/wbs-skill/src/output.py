@@ -40,8 +40,8 @@ def export_to_excel(tasks: List[Dict], output_path: str):
         bottom=Side(style='thin')
     )
     
-    # 表头（新增任务来源列）
-    headers = ['任务模块', '任务 ID', '任务内容', '任务来源', '依赖', '可验收标准']
+    # 表头（新增任务来源、任务类型列）
+    headers = ['任务模块', '任务 ID', '任务内容', '任务来源', '任务类型', '依赖', '可验收标准']
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=1, column=col, value=header)
         cell.font = header_font
@@ -53,21 +53,23 @@ def export_to_excel(tasks: List[Dict], output_path: str):
         ws.cell(row=row_idx, column=1, value=clean_text(task.get('任务模块', '未分类'))).alignment = cell_alignment
         ws.cell(row=row_idx, column=2, value=clean_text(task.get('任务 ID', ''))).alignment = cell_alignment
         ws.cell(row=row_idx, column=3, value=clean_text(task.get('任务内容', ''))).alignment = cell_alignment
-        ws.cell(row=row_idx, column=4, value=clean_text(task.get('任务来源', ''))).alignment = cell_alignment  # 新增列
-        ws.cell(row=row_idx, column=5, value=clean_text(task.get('依赖', '无'))).alignment = cell_alignment
-        ws.cell(row=row_idx, column=6, value=clean_text(task.get('可验收标准', ''))).alignment = cell_alignment
+        ws.cell(row=row_idx, column=4, value=clean_text(task.get('任务来源', ''))).alignment = cell_alignment
+        ws.cell(row=row_idx, column=5, value=clean_text(task.get('任务类型', '普通任务'))).alignment = cell_alignment
+        ws.cell(row=row_idx, column=6, value=clean_text(task.get('依赖', '无'))).alignment = cell_alignment
+        ws.cell(row=row_idx, column=7, value=clean_text(task.get('可验收标准', ''))).alignment = cell_alignment
         
         # 应用边框
-        for col in range(1, 7):
+        for col in range(1, 8):
             ws.cell(row=row_idx, column=col).border = thin_border
     
     # 调整列宽
     ws.column_dimensions['A'].width = 15
     ws.column_dimensions['B'].width = 10
     ws.column_dimensions['C'].width = 50
-    ws.column_dimensions['D'].width = 40  # 任务来源列
-    ws.column_dimensions['E'].width = 10
-    ws.column_dimensions['F'].width = 35
+    ws.column_dimensions['D'].width = 40
+    ws.column_dimensions['E'].width = 15
+    ws.column_dimensions['F'].width = 10
+    ws.column_dimensions['G'].width = 35
     
     # 自动筛选
     ws.auto_filter.ref = ws.dimensions
