@@ -1,10 +1,16 @@
-# wbs-skill 依赖包
+# wbs-skill v3.0 依赖清单
 
-# PDF 解析
-pdfplumber>=0.9.0
+# 核心依赖（必装）
+PyPDF2>=3.0.0           # PDF 文本解析
+pdfplumber>=0.10.0      # PDF 表格解析
+openpyxl>=3.1.0         # Excel 输出
+pyyaml>=6.0             # YAML 配置解析
 
-# Excel 输出
-openpyxl>=3.0.0
+# 可选依赖（按需安装）
+# python-docx>=1.1.0    # DOCX 解析：pip install python-docx
+# camelot-py[cv]>=0.11.0  # 表格解析备选：pip install 'camelot-py[cv]'
+# tabula-py>=2.9.0      # 表格解析备选（需 Java）：pip install tabula-py
+# dashscope>=1.14.0     # LLM 确认（Phase 2）：pip install dashscope
 
 # 测试
 pytest>=7.0.0

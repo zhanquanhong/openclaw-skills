@@ -47,5 +47,11 @@ pattern_db.json
 .DS_Store
 Thumbs.db
 
-# 输出文件（在 test-data/output/）
+# 输出文件
 *.xlsx
+
+# 版本历史
+data/.history/
+
+# 本地配置覆盖
+config/*.local.yaml

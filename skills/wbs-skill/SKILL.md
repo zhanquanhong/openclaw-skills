@@ -1,17 +1,20 @@
 # wbs-skill - WBS 任务自动分解技能
 
-**版本**: v2.0 (方案 C 生产级)  
+**版本**: v3.0 (生产级)  
 **创建时间**: 2026-04-16  
-**更新时间**: 2026-04-17  
-**目标**: 输入技术方案 PDF → 自动分解后端开发任务 → 越用越聪明
+**更新时间**: 2026-04-27  
+**目标**: 输入技术方案文档 → 自动分解后端开发任务 → 越用越聪明
 
 ---
 
 ## 🚀 快速开始
 
 ```bash
-# 一键生成 WBS
+# 一键生成 WBS（默认数字编号模板）
 python3 generate_wbs.py /path/to/技术方案.pdf
+
+# 指定章节模板
+python3 generate_wbs.py 技术方案.pdf --section-template chinese
 
 # 查看统计
 python3 generate_wbs.py --stats
@@ -39,12 +42,35 @@ python3 generate_wbs.py 技术方案.pdf
 
 | 特性 | 说明 |
 |------|------|
-| **一键生成** | 输入 PDF，输出 Excel 任务分解 |
-| **自动识别** | 自动识别「新增」「更新」标注的关键任务 |
+| **多格式支持** | 支持 PDF、DOCX、Markdown |
+| **多章节模板** | 数字编号/中文编号/Markdown/混合编号 |
+| **表格解析** | 自动识别接口表格，提取接口任务 |
+| **一键生成** | 输入文档，输出 Excel 任务分解 |
 | **用户白名单** | 用户自定义白名单，git pull 不丢失 |
 | **团队共享** | 支持导出/导入白名单，团队识别率共同提升 |
 | **精准定位** | 任务来源精确到章节 + 行号 |
 | **自动清理** | 输出目录自动保留最新 10 份 |
+
+---
+
+## 📋 章节识别模板
+
+支持多种章节编号规则，通过 `--section-template` 参数切换：
+
+| 模板 | 说明 | 示例 |
+|------|------|------|
+| `numeric` | 数字编号 | 1.2.1 接口定义 |
+| `chinese` | 中文编号 | 一、需求分析 → (一) 功能需求 → 1. 用户管理 |
+| `markdown` | Markdown 标题 | ## 接口定义 |
+| `mixed` | 混合编号 | 一、需求分析 → 1.1 功能需求 |
+
+```bash
+# 使用默认模板（numeric）
+python3 generate_wbs.py 技术方案.pdf
+
+# 使用中文编号模板
+python3 generate_wbs.py 技术方案.pdf --section-template chinese
+```
 
 ---
 
@@ -56,14 +82,20 @@ wbs-skill/
 ├── .gitignore                      # 保护用户数据
 ├── README_USAGE.md                 # 详细使用文档
 ├── SKILL.md                        # 本文件
+├── test_phase1.py                  # Phase 1 单元测试
+├── config/
+│   ├── section_rules.yaml          # 章节识别模板配置
+│   └── mode.yaml                   # 运行模式配置
 ├── data/
 │   ├── whitelist.yaml              # 官方白名单
 │   └── user_whitelist.yaml         # 用户白名单（.gitignore 保护）
 └── src/
+    ├── section_engine.py           # 章节推断引擎
+    ├── table_extractor.py          # 表格解析器（多引擎 fallback）
+    ├── document_parser.py          # 多格式文档解析
     ├── whitelist_manager.py        # 白名单管理器
-    ├── whitelist_extractor_v7.py   # 自动提取器（识别新增/更新）
     ├── decomposer_v3.py            # 任务分解器
-    ├── parser.py                   # PDF 解析
+    ├── parser.py                   # PDF 解析（兼容旧版）
     ├── rules.py                    # 规则定义
     ├── templates.py                # 验收标准模板
     └── output.py                   # Excel 输出
