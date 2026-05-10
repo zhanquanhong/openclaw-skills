@@ -1,8 +1,8 @@
 # wbs-skill - WBS 任务自动分解技能
 
-**版本**: v3.1 (生产级)  
+**版本**: v3.2 (生产级)  
 **创建时间**: 2026-04-16  
-**更新时间**: 2026-04-28  
+**更新时间**: 2026-05-10  
 **目标**: 输入技术方案文档 → 自动分解后端开发任务 → 越用越聪明
 
 ---
@@ -10,11 +10,18 @@
 ## 🚀 快速开始
 
 ```bash
-# 一键生成 WBS（默认数字编号模板）
-python3 generate_wbs.py /path/to/技术方案.pdf
+# 一键安装（只跑一次）
+# Mac/Linux
+chmod +x install.sh && ./install.sh
 
-# 指定章节模板
-python3 generate_wbs.py 技术方案.pdf --section-template chinese
+# Windows
+双击 install.bat
+
+# 一键生成 WBS（默认数字编号模板）
+./wbs.sh input/技术方案.pdf
+
+# 自然语言调用
+./wbs.sh 技术方案.pdf "按周分解，重点标出接口任务"
 
 # 查看统计
 python3 generate_wbs.py --stats
@@ -27,12 +34,12 @@ python3 generate_wbs.py --export my_whitelist.yaml
 
 ## 📁 默认输出路径
 
-**默认**：`./output/`（当前目录下的 output 文件夹）
+**默认**：`./output/`（wbs-skill 目录下的 output 文件夹）
 
 **示例**：
 ```bash
 cd skills/wbs-skill
-python3 generate_wbs.py 技术方案.pdf
+./wbs.sh input/技术方案.pdf
 # 输出：skills/wbs-skill/output/WBS_技术方案_xxx.xlsx
 ```
 
@@ -46,6 +53,7 @@ python3 generate_wbs.py 技术方案.pdf
 | **多章节模板** | 数字编号/中文编号/Markdown/混合编号 |
 | **表格解析** | 自动识别接口表格，提取接口任务 |
 | **一键生成** | 输入文档，输出 Excel 任务分解 |
+| **自然语言调用** | 加引号传入需求描述，自动解析意图 |
 | **用户白名单** | 用户自定义白名单，git pull 不丢失 |
 | **团队共享** | 支持导出/导入白名单，团队识别率共同提升 |
 | **精准定位** | 任务来源精确到章节 + 行号 |
@@ -66,10 +74,10 @@ python3 generate_wbs.py 技术方案.pdf
 
 ```bash
 # 使用默认模板（numeric）
-python3 generate_wbs.py 技术方案.pdf
+./wbs.sh 技术方案.pdf
 
 # 使用中文编号模板
-python3 generate_wbs.py 技术方案.pdf --section-template chinese
+./wbs.sh 技术方案.pdf --section-template chinese
 ```
 
 ---
@@ -78,8 +86,13 @@ python3 generate_wbs.py 技术方案.pdf --section-template chinese
 
 ```
 wbs-skill/
+├── wbs.sh                          # Mac/Linux 入口脚本（新增）
+├── wbs.bat                         # Windows 入口脚本（新增）
+├── install.sh                      # Mac/Linux 安装脚本（新增）
+├── install.bat                     # Windows 安装脚本（新增）
 ├── generate_wbs.py                 # 一键生成器（主入口）
 ├── .gitignore                      # 保护用户数据
+├── README.md                       # 使用说明
 ├── README_USAGE.md                 # 详细使用文档
 ├── SKILL.md                        # 本文件
 ├── test_phase1.py                  # Phase 1 单元测试
@@ -90,6 +103,9 @@ wbs-skill/
 │   ├── whitelist.yaml              # 官方白名单
 │   └── user_whitelist.yaml         # 用户白名单（.gitignore 保护）
 └── src/
+    ├── wbs_cli.py                  # CLI 统一入口（新增）
+    ├── intent_parser.py            # 自然语言意图解析（新增）
+    ├── env_checker.py              # 环境检查（新增）
     ├── section_engine.py           # 章节推断引擎
     ├── table_extractor.py          # 表格解析器（多引擎 fallback）
     ├── document_parser.py          # 多格式文档解析
@@ -111,6 +127,7 @@ wbs-skill/
 | **类似方案复用** | 一键生成（自动使用用户白名单） |
 | **团队共享** | 导出白名单 → 团队成员导入 |
 | **换电脑** | 复制 user_whitelist.yaml 即可 |
+| **自然语言调用** | 加引号传入需求描述 |
 
 ---
 
@@ -178,6 +195,22 @@ python3 generate_wbs.py --stats
 python3 generate_wbs.py 技术方案.pdf --no-user
 ```
 
+### 自然语言调用
+
+```bash
+# 按周分解
+./wbs.sh 技术方案.pdf "按周分解"
+
+# 重点标出接口任务
+./wbs.sh 技术方案.pdf "重点标出接口任务"
+
+# 排除运维相关任务
+./wbs.sh 技术方案.pdf "排除运维相关任务"
+
+# 只分解后端开发部分
+./wbs.sh 技术方案.pdf "只分解后端开发部分"
+```
+
 ---
 
 ## 📈 学习机制
@@ -187,7 +220,7 @@ python3 generate_wbs.py 技术方案.pdf --no-user
     ↓
 自动生成 + 手动补充
     ↓
-保存到 user_whitelist.yaml（学习成果）
+保存到用户白名单（学习成果）
     ↓
 下次使用时自动加载
     ↓
@@ -202,4 +235,4 @@ python3 generate_wbs.py 技术方案.pdf --no-user
 
 ---
 
-**wbs-skill - 越用越聪明的 WBS 生成器**
+**wbs-skill v3.2 — 下载即用，拖文档出 Excel，支持自然语言调用**
