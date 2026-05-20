@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# wbs-skill v3.2 — 一键安装脚本
+# wbs-skill v4.0 — 一键安装脚本
 # Mac/Linux
 #
 # 使用方式：
@@ -25,7 +25,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 echo -e "${BLUE}╔══════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║  wbs-skill v3.2 — 安装向导               ║${NC}"
+echo -e "${BLUE}║  wbs-skill v4.0 — 安装向导               ║${NC}"
 echo -e "${BLUE}╚══════════════════════════════════════════╝${NC}"
 echo ""
 

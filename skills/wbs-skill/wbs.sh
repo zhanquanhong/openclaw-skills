@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# wbs-skill v3.2 — 自然语言 WBS 生成器
+# wbs-skill v4.0 — 自然语言 WBS 生成器
 # Mac/Linux 入口脚本
 #
 # 使用方式：
@@ -39,7 +39,7 @@ fi
 # ========== 参数解析 ==========
 if [ $# -eq 0 ]; then
     echo -e "${YELLOW}╔══════════════════════════════════════╗${NC}"
-    echo -e "${YELLOW}║  wbs-skill v3.2 — WBS 任务分解器     ║${NC}"
+    echo -e "${YELLOW}║  wbs-skill v4.0 — WBS 任务分解器     ║${NC}"
     echo -e "${YELLOW}╚══════════════════════════════════════╝${NC}"
     echo ""
     echo "用法："

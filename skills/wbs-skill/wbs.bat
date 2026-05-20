@@ -2,7 +2,7 @@
 chcp 65001 >nul 2>&1
 setlocal enabledelayedexpansion
 
-REM wbs-skill v3.2 — 自然语言 WBS 生成器
+REM wbs-skill v4.0 — 自然语言 WBS 生成器
 REM Windows 入口脚本
 REM
 REM 使用方式：
@@ -30,7 +30,7 @@ if not exist "%VENV_PYTHON%" (
 REM ========== 参数检查 ==========
 if "%~1"=="" (
     echo ╔══════════════════════════════════════╗
-    echo ║  wbs-skill v3.2 — WBS 任务分解器     ║
+    echo ║  wbs-skill v4.0 — WBS 任务分解器     ║
     echo ╚══════════════════════════════════════╝
     echo.
     echo 用法：

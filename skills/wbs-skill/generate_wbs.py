@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""WBS 一键生成器 - v3.0（通用化 + 智能化）
+"""WBS 一键生成器 - v4.0（通用化 + 智能化）
 
 支持多种文档格式（PDF/DOCX/Markdown）和多种章节编号规则。
 
@@ -15,14 +15,20 @@
 
     # 禁用自动学习
     python3 generate_wbs.py 技术方案.pdf --no-learn
+
+    # 导出调试 JSON
+    python3 generate_wbs.py 技术方案.pdf --debug-json debug.json
 """
 
 import sys
 import os
 import re
+import json
 import logging
-from datetime import datetime
+import time
+from datetime import datetime, timezone
 from pathlib import Path
+from functools import wraps
 from typing import Dict, List, Optional, Tuple
 
 # 确保能导入 src 模块
@@ -36,6 +42,10 @@ from src.whitelist_manager import UserWhitelistManager, load_whitelist
 from src.output import export_to_excel
 from src.templates import get_acceptance_criteria
 from src.decomposer_v3 import cleanup_old_files
+from src.source_locator import SourceLocator
+from src.content_extractor import ContentExtractor
+from src.module_grouper import ModuleGrouper
+from src.consistency_checker import ConsistencyChecker
 
 # 配置日志
 logging.basicConfig(
@@ -44,6 +54,19 @@ logging.basicConfig(
     datefmt='%H:%M:%S'
 )
 logger = logging.getLogger(__name__)
+
+
+def timed(func):
+    """计时装饰器：记录函数执行时间到 wrapper.timing_ms"""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start = time.time()
+        result = func(*args, **kwargs)
+        elapsed = round((time.time() - start) * 1000, 1)
+        wrapper.timing_ms = elapsed
+        return result
+    wrapper.timing_ms = 0
+    return wrapper
 
 
 def _split_large_modules(tasks: List[Dict], max_size: int = 10) -> List[Dict]:
@@ -91,6 +114,32 @@ def _split_large_modules(tasks: List[Dict], max_size: int = 10) -> List[Dict]:
     return tasks
 
 
+def _semantic_merge_tasks(tasks: List[Dict]) -> List[Dict]:
+    """任务后处理：修正模块名，不做任务合并
+
+    当前不做任务合并（保持 130+ 独立任务的粒度），只修正模块名：
+    - 对没有章节路径的噪音任务过滤
+
+    Args:
+        tasks: 原始任务列表
+
+    Returns:
+        处理后的任务列表
+    """
+    import re
+
+    def _get_section_path(t):
+        source = t.get('任务来源', '')
+        sec = source.split('|')[0].strip() if '|' in source else source.split('\n')[0].strip()
+        return sec
+
+    # 过滤没有有效章节路径的任务（文档标题等噪音）
+    result = [t for t in tasks if _get_section_path(t) and len(_get_section_path(t)) > 3]
+
+    logger.info(f"任务过滤完成：{len(tasks)} → {len(result)} 个任务")
+    return result
+
+
 def _infer_sub_module(module: str, content: str) -> str:
     """推断子模块名
 
@@ -125,12 +174,37 @@ def _infer_sub_module(module: str, content: str) -> str:
     for keyword, sub_module in keyword_map.items():
         if keyword in content:
             return f"{module} - {sub_module}"
+    return module
+
+    # 关键词映射
+    keyword_map = {
+        '技能': '技能中心',
+        '接口': '接口开发',
+        '查询': '查询功能',
+        '更新': '更新功能',
+        '删除': '删除功能',
+        '配置': '配置管理',
+        '渠道': '渠道配置',
+        '模型': '模型管理',
+        '对话': '对话管理',
+        '会话': '会话管理',
+        '推送': '推送功能',
+        '通知': '通知功能',
+        'MClaw': 'MClaw 模块',
+        '容器': '容器管理',
+        'K8s': 'K8s 部署',
+    }
+
+    for keyword, sub_module in keyword_map.items():
+        if keyword in content:
+            return f"{module} - {sub_module}"
 
     return module
 
 
 def _sort_tasks_by_module(tasks: List[Dict]) -> List[Dict]:
-    """按模块分组排序任务
+    """
+    按模块分组排序任务
 
     确保同模块的任务连续排列，便于依赖推断。
 
@@ -239,17 +313,26 @@ def generate_wbs(
     output_dir: str = None,
     section_template: str = "numeric",
     auto_learn: bool = True,
-    require_confirm: bool = True
+    require_confirm: bool = True,
+    mode: str = "v4",
+    debug_json_path: Optional[str] = None,
 ) -> str:
     """一键生成 WBS 任务分解
 
-    工作流程：
+    v4.0 数据流：
     1. 解析文档（PDF/DOCX/Markdown）
+    2. 来源定位（精确定位每个任务行）
+    3. 内容提取（去除冗余、截断长句、API提取）
+    4. 模块归组（内容关键词 + 章节辅助）
+    5. 一致性验证（来源→内容→模块校验）
+    6. 输出 Excel
+
+    v3 数据流（兼容模式）：
+    1. 解析文档
     2. 从表格和文本中提取任务
-    3. 白名单匹配（标准化任务命名）
-    4. 智能融合：任务内容←白名单，任务来源←文档
+    3. 白名单匹配
+    4. 智能融合
     5. 生成 WBS
-    6. 新任务自动学习（可选确认）
 
     Args:
         file_path: 文档文件路径
@@ -257,14 +340,324 @@ def generate_wbs(
         section_template: 章节识别模板（numeric/chinese/markdown/mixed）
         auto_learn: 是否自动学习新任务
         require_confirm: 学习前是否需要确认
+        mode: 生成模式（v4/v3，默认 v4）
+        debug_json_path: 调试 JSON 输出路径（可选）
 
     Returns:
         输出文件路径
-
-    Raises:
-        FileNotFoundError: 文件不存在
-        ValueError: 文件格式不支持
     """
+    if mode == "v4":
+        return generate_wbs_v4(file_path, output_dir, section_template, auto_learn, require_confirm, debug_json_path)
+    else:
+        return generate_wbs_v3(file_path, output_dir, section_template, auto_learn, require_confirm)
+
+
+def generate_wbs_v4(
+    file_path: str,
+    output_dir: str = None,
+    section_template: str = "numeric",
+    auto_learn: bool = True,
+    require_confirm: bool = True,
+    debug_json_path: Optional[str] = None,
+) -> str:
+    """v4.0 WBS 生成（通用化 + 精准溯源）
+
+    数据流：来源定位 → 内容提取 → 模块归组 → 一致性验证 → 输出
+
+    Args:
+        file_path: 文档文件路径
+        output_dir: 输出目录
+        section_template: 章节识别模板
+        auto_learn: 是否自动学习新任务
+        require_confirm: 学习前是否需要确认
+        debug_json_path: 调试 JSON 输出路径（可选）
+
+    Returns:
+        输出文件路径
+    """
+    timing = {}
+
+    # 1. 检查文件
+    if not os.path.exists(file_path):
+        print(f'❌ 文件不存在：{file_path}')
+        sys.exit(1)
+
+    # 2. 设置输出目录
+    if not output_dir:
+        workspace_output = SKILL_DIR.parent.parent / 'test-data' / 'output'
+        if workspace_output.exists():
+            output_dir = str(workspace_output)
+        else:
+            output_dir = str(SKILL_DIR / 'output')
+    os.makedirs(output_dir, exist_ok=True)
+
+    # 3. 解析文档
+    print(f'📄 分析文件：{os.path.basename(file_path)}')
+    print(f'📋 章节模板：{section_template}')
+
+    try:
+        t0 = time.time()
+        parser = DocumentParser()
+        document = parser.parse(file_path, section_template=section_template)
+        timing['parse_ms'] = round((time.time() - t0) * 1000, 1)
+    except Exception as e:
+        print(f'❌ 文档解析失败：{e}')
+        sys.exit(1)
+
+    print(f'   文本：{document.line_count} 行')
+    print(f'   章节：{document.section_count} 个')
+    print(f'   表格：{document.table_count} 个')
+
+    # 4. 加载白名单
+    print('📚 加载白名单（官方 + 用户）...')
+    whitelist = load_whitelist()
+    manager = UserWhitelistManager()
+    stats = manager.get_stats()
+    print(f'   官方：{stats["official_tasks"]} 个任务')
+    print(f'   用户：{stats["user_tasks"]} 个任务（学习成果）')
+
+    # 5. 来源定位（v4 新增）
+    print('📍 来源定位...')
+    t0 = time.time()
+    locator = SourceLocator(context_lines=1)
+    sources = locator.locate_all(
+        document.lines,
+        document.sections,
+        file_type=document.file_type,
+        page_map=document.page_map if document.page_map else None,
+    )
+    timing['locate_sources_ms'] = round((time.time() - t0) * 1000, 1)
+    print(f'   找到 {len(sources)} 个潜在任务行')
+
+    # 6. 内容提取 + 模块归组（v4 新增）
+    print('🔄 内容提取 + 模块归组...')
+    t0 = time.time()
+    grouper = ModuleGrouper(whitelist=whitelist)
+    checker = ConsistencyChecker()
+    extractor = ContentExtractor()
+
+    tasks = []
+    new_tasks = []
+    debug_tasks = []
+    task_uid = 0
+
+    for source in sources:
+        task_uid += 1
+        content_before_clean = source.raw_text
+        t_task = time.time()
+
+        # 内容提取
+        content_result = extractor.extract(source)
+        if not content_result:
+            continue
+
+        content_after_clean = content_result.content
+
+        # 模块归组
+        module_result = grouper.group(content_result.content, source.section_path)
+
+        # 组装任务
+        task = {
+            "任务模块": module_result.module_name,
+            "任务内容": content_result.content,
+            "任务类型": content_result.task_type,
+            "任务来源": source.format_for_excel(),
+            "原文片段": source.raw_text[:100] if source.raw_text else "",
+            "_source_info": source,
+            "_module_result": module_result,
+        }
+
+        # 一致性验证
+        validation = checker.verify(task)
+        task_validation = validation  # 记录验证结果
+
+        if not validation.is_valid and validation.confidence < 0.2:
+            logger.debug(f"跳过低置信度任务: {task['任务内容']} ({validation.confidence:.2f})")
+            continue
+
+        # 设置验证状态
+        if not validation.is_valid:
+            task['验证状态'] = 'FAIL'
+        elif validation.issues:
+            task['验证状态'] = 'WARN'
+        else:
+            task['验证状态'] = 'PASS'
+
+        task['处理时间(ms)'] = round((time.time() - t_task) * 1000, 1)
+
+        # 清理内部字段
+        source_info = task.pop("_source_info", None)
+        task.pop("_module_result", None)
+
+        tasks.append(task)
+
+        # 调试信息收集
+        if debug_json_path:
+            debug_tasks.append({
+                "uid": f"TASK-{task_uid:03d}",
+                "source_raw": source_info.raw_text if source_info else "",
+                "section_path": source_info.section_path if source_info else "",
+                "content_before_clean": content_before_clean,
+                "content_after_clean": content_after_clean,
+                "module_assigned": module_result.module_name,
+                "module_by": module_result.match_source,
+                "validation_result": task_validation.to_dict() if task_validation else {},
+                "processing_time_ms": task['处理时间(ms)'],
+            })
+
+        if not whitelist.get(module_result.module_name):
+            new_tasks.append(task)
+
+    timing['extract_tasks_ms'] = round((time.time() - t0) * 1000, 1)
+    print(f'   提取 {len(tasks)} 个有效任务')
+
+    # 6.6 语义聚合：同一模块内内容相似的相邻任务合并
+    before_merge = len(tasks)
+    tasks = _semantic_merge_tasks(tasks)
+    if len(tasks) < before_merge:
+        print(f'   🔗 语义聚合：{before_merge} → {len(tasks)} 个')
+
+    # 6.5 交叉验证增强
+    print('🔍 交叉验证...')
+    t0 = time.time()
+    validation_results: Dict[str, List] = {
+        "一致性验证": [],
+        "相邻任务重复检测": [],
+        "模块平衡检测": [],
+        "来源合理性检测": [],
+    }
+
+    # 收集标准一致性验证结果
+    for task in tasks:
+        # 重建验证（已丢失 _source_info，用原文片段代替）
+        fake_task = {
+            "任务模块": task.get("任务模块", ""),
+            "任务内容": task.get("任务内容", ""),
+            "任务来源": task.get("任务来源", ""),
+        }
+        v = checker.verify(fake_task)
+        if v.issues:
+            v.content = task.get("任务内容", "")
+            validation_results["一致性验证"].append(v)
+
+    # 相邻任务重复检测
+    if len(tasks) >= 2:
+        dup_results = checker.check_adjacent_duplicates(tasks)
+        for r in dup_results:
+            validation_results["相邻任务重复检测"].append(r)
+
+    # 模块平衡检测
+    bal_results = checker.check_module_balance(tasks)
+    for r in bal_results:
+        validation_results["模块平衡检测"].append(r)
+
+    # 来源合理性检测
+    # 重新构建带有 _source_info 的列表
+    with_source_tasks = []
+    for i, task in enumerate(tasks):
+        if i < len(sources):
+            with_source_tasks.append({**task, "_source_info": sources[i] if i < len(sources) else None})
+    reason_results = checker.check_source_reasonability(with_source_tasks)
+    for r in reason_results:
+        validation_results["来源合理性检测"].append(r)
+
+    timing['validate_ms'] = round((time.time() - t0) * 1000, 1)
+    total_issues = sum(len(v) for v in validation_results.values())
+    print(f'   验证完成：{total_issues} 个问题')
+
+    # 7. 按模块分组排序
+    tasks = _sort_tasks_by_module(tasks)
+
+    # 8. 生成任务 ID 和依赖
+    task_id = 1
+    module_last_task = {}
+
+    for task in tasks:
+        task["任务 ID"] = f"T{task_id:03d}"
+        module = task["任务模块"]
+
+        if module in module_last_task:
+            task["依赖"] = module_last_task[module]
+        else:
+            task["依赖"] = "无"
+
+        task["可验收标准"] = get_acceptance_criteria(
+            'REST_API' if '接口' in task["任务内容"] else 'FEATURE',
+            task["任务内容"]
+        )
+
+        module_last_task[module] = task["任务 ID"]
+        task_id += 1
+
+    timing['total_ms'] = round(sum(timing.values()), 1)
+
+    # 9. 输出 Excel
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    file_name = Path(file_path).stem
+    output_path = os.path.join(output_dir, f'WBS_{file_name}_{timestamp}.xlsx')
+
+    export_to_excel(tasks, output_path, validation_results=validation_results, timing_info=timing)
+    cleanup_old_files(output_dir, keep_count=10)
+
+    # 9.5 输出调试 JSON
+    if debug_json_path:
+        debug_data = {
+            "version": "v4.0",
+            "generated_at": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S'),
+            "total_tasks": len(tasks),
+            "tasks": debug_tasks,
+            "timing": timing,
+            "validation_summary": {
+                vtype: len(vlist) for vtype, vlist in validation_results.items()
+            },
+        }
+        with open(debug_json_path, 'w', encoding='utf-8') as f:
+            json.dump(debug_data, f, ensure_ascii=False, indent=2)
+        print(f'📝 调试 JSON 已输出：{debug_json_path}')
+
+    # 10. 学习新任务
+    if new_tasks and auto_learn:
+        learn_new_tasks(new_tasks, require_confirm)
+
+    # 11. 输出统计
+    print()
+    print('=' * 80)
+    print('✅ WBS v4.0 生成完成！')
+    print('=' * 80)
+    print(f'📁 输出文件：{output_path}')
+    print(f'📊 任务总数：{len(tasks)} 个')
+    if timing:
+        print(f'⏱  处理耗时：{timing["total_ms"]}ms')
+
+    task_types = {}
+    for task in tasks:
+        t = task.get("任务类型", "普通任务")
+        task_types[t] = task_types.get(t, 0) + 1
+
+    print()
+    print('📋 任务类型统计:')
+    for t, count in sorted(task_types.items()):
+        print(f'  {t}: {count}个')
+
+    print()
+    print('💡 提示：')
+    print('  - 文件已保存到输出目录，自动保留最新 10 份')
+    print('  - 新任务已自动学习，git pull 不会丢失')
+    print('  - 使用 --no-learn 禁用自动学习')
+    print('  - 使用 --debug-json <path> 导出调试信息')
+    print('=' * 80)
+
+    return output_path
+
+
+def generate_wbs_v3(
+    file_path: str,
+    output_dir: str = None,
+    section_template: str = "numeric",
+    auto_learn: bool = True,
+    require_confirm: bool = True
+) -> str:
+    """v4.0 WBS 生成（兼容模式）"""
     # 1. 检查文件
     if not os.path.exists(file_path):
         print(f'❌ 文件不存在：{file_path}')
@@ -831,18 +1224,25 @@ def learn_new_tasks(new_tasks: List[Dict], require_confirm: bool = True) -> None
         # 检查是否已存在
         existing = False
         for item in user_whitelist[module]:
-            if isinstance(item, dict) and item.get('任务内容') == task['任务内容']:
-                existing = True
-                break
+            if isinstance(item, dict):
+                if item.get('任务内容') == task['任务内容']:
+                    existing = True
+                    break
+                # 也检查旧版字符串格式
             elif isinstance(item, str) and item == task['任务内容']:
                 existing = True
                 break
 
         if not existing:
+            # v4.0 格式：保存完整信息
             user_whitelist[module].append({
                 '任务内容': task['任务内容'],
-                '任务来源': task['任务来源'],
-                '任务类型': task['任务类型']
+                '任务来源': task.get('任务来源', ''),
+                '任务类型': task.get('任务类型', '功能任务'),
+                '原文片段': task.get('原文片段', ''),
+                '模块归属': module,
+                # 向后兼容：保留旧版字符串
+                '_version': 'v4.0',
             })
 
     manager.save_user(user_whitelist)
@@ -871,7 +1271,7 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser(
-        description='WBS 一键生成器 v3.0（通用化 + 智能化）',
+        description='WBS 一键生成器 v4.0（通用化 + 精准溯源）',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例：
@@ -906,10 +1306,13 @@ if __name__ == '__main__':
 
     parser.add_argument('pdf', nargs='?', help='文档文件路径（PDF/DOCX/Markdown）')
     parser.add_argument('-o', '--output', help='输出目录')
+    parser.add_argument('--mode', default='v4',
+                        help='生成模式：v4（通用化+精准溯源）/ v3（兼容模式）（默认：v4）')
     parser.add_argument('--section-template', default='numeric',
                         help='章节识别模板：numeric/chinese/markdown/mixed（默认：numeric）')
     parser.add_argument('--no-learn', action='store_true', help='禁用自动学习')
     parser.add_argument('--no-confirm', action='store_true', help='学习时不需要确认')
+    parser.add_argument('--debug-json', help='导出调试 JSON 到指定路径')
     parser.add_argument('--export', help='导出用户白名单到指定路径')
     parser.add_argument('--import', dest='import_path', help='导入用户白名单')
     parser.add_argument('--stats', action='store_true', help='显示统计信息')
@@ -937,5 +1340,7 @@ if __name__ == '__main__':
         output_dir=args.output,
         section_template=args.section_template,
         auto_learn=not args.no_learn,
-        require_confirm=not args.no_confirm
+        require_confirm=not args.no_confirm,
+        mode=args.mode,
+        debug_json_path=args.debug_json,
     )

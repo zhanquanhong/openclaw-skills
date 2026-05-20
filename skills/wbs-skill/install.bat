@@ -2,7 +2,7 @@
 chcp 65001 >nul 2>&1
 setlocal
 
-REM wbs-skill v3.2 — 一键安装脚本
+REM wbs-skill v4.0 — 一键安装脚本
 REM Windows
 REM
 REM 使用方式：
@@ -15,7 +15,7 @@ REM   3. 安装所有依赖
 REM   4. 创建 input/ output/ 目录
 
 echo ╔══════════════════════════════════════════╗
-echo ║  wbs-skill v3.2 — 安装向导               ║
+echo ║  wbs-skill v4.0 — 安装向导               ║
 echo ╚══════════════════════════════════════════╝
 echo.
 

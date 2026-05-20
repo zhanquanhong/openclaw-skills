@@ -11,12 +11,14 @@
 """
 
 import logging
+import re
 from pathlib import Path
 from typing import List, Dict, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from src.section_engine import SectionInferEngine, Section
 from src.table_extractor import TableExtractor, Table
+from src.source_locator import build_page_map
 
 logger = logging.getLogger(__name__)
 
@@ -31,12 +33,14 @@ class ParsedDocument:
         sections: 章节列表
         tables: 表格列表
         file_type: 文件类型（pdf/docx/markdown）
+        page_map: 行号 → 页码映射（PDF 有效，其他格式为空字典）
     """
     text: str
     lines: List[str]
     sections: List[Section]
     tables: List[Table]
     file_type: str = ""
+    page_map: Dict[int, int] = field(default_factory=dict)
 
     @property
     def line_count(self) -> int:
@@ -125,6 +129,7 @@ class DocumentParser:
         """PDF 解析
 
         使用 PyPDF2 提取文本，pdfplumber 提取表格。
+        同时构建行号 → 页码映射。
 
         Args:
             file_path: PDF 文件路径
@@ -138,8 +143,14 @@ class DocumentParser:
         except ImportError:
             raise ImportError('PDF 解析需要安装 PyPDF2：pip install PyPDF2')
 
-        # 提取文本
-        text = self._extract_pdf_text(file_path)
+        # 提取文本（按页）
+        pdf_pages = self._extract_pdf_text_with_pages(file_path)
+
+        # 构建页码映射
+        page_map = build_page_map(pdf_pages)
+
+        # 合并全文
+        text = '\n'.join(page_text for _, page_text in pdf_pages)
 
         # 乱码修复
         text = self._fix_pdf_artifacts(text)
@@ -157,8 +168,40 @@ class DocumentParser:
             lines=lines,
             sections=sections,
             tables=tables,
-            file_type='pdf'
+            file_type='pdf',
+            page_map=page_map,
         )
+
+    def _extract_pdf_text_with_pages(self, file_path: str) -> List[tuple]:
+        """从 PDF 按页提取文本
+
+        Args:
+            file_path: PDF 文件路径
+
+        Returns:
+            [(页码, 页面文本), ...]
+
+        Raises:
+            Exception: PDF 解析失败
+        """
+        import PyPDF2
+
+        try:
+            with open(file_path, 'rb') as f:
+                reader = PyPDF2.PdfReader(f)
+                pages = []
+                for page_num, page in enumerate(reader.pages, 1):
+                    page_text = page.extract_text() or ''
+                    pages.append((page_num, page_text))
+
+            # 检查是否为空
+            total_text = '\n'.join(pt for _, pt in pages)
+            if not total_text.strip():
+                logger.warning(f'PDF 文本为空（可能为扫描件）：{file_path}')
+
+            return pages
+        except Exception as e:
+            raise Exception(f'PDF 解析失败：{file_path}，错误：{e}')
 
     def _extract_pdf_text(self, file_path: str) -> str:
         """从 PDF 提取文本
@@ -213,6 +256,18 @@ class DocumentParser:
         for wrong, correct in replacements.items():
             if wrong in text:
                 text = text.replace(wrong, correct)
+
+        # 清理所有不可见控制字符（\x00-\x08 \x0b \x0c \x0e-\x1f \x7f \x80-\x9f \xad）
+        text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f\xad]', '', text)
+        # 清理零宽字符
+        text = re.sub(r'[\u200b-\u200f\u2028-\u202f\ufeff]', '', text)
+        # 替换全角空格为半角
+        text = text.replace('\u3000', ' ')
+        # 多个空白合并
+        text = re.sub(r'[ \t]+', ' ', text)
+        # 清理行首行尾空白
+        lines = [line.strip() for line in text.split('\n')]
+        text = '\n'.join(lines)
 
         return text
 

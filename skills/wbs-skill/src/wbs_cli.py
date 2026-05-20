@@ -332,7 +332,7 @@ def generate_wbs_with_intent(
 def main():
     """CLI 入口主函数"""
     parser = argparse.ArgumentParser(
-        description='WBS 任务分解器 v3.2',
+        description='WBS 任务分解器 v4.0',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例：
