@@ -1,0 +1,22 @@
+{
+  "name": "token-watcher",
+  "version": "1.3.0",
+  "category": "监控分析",
+  "description": "AI 对话 Token 监控分析工具。一键安装自动捕获 OpenClaw/CLI API/浏览器网页等多渠道 AI 对话，统计输入输出 token 数量，智能分析并给出优化建议，Web Dashboard 可视化展示。",
+  "input": [
+    "OpenClaw 会话（自动）",
+    "API 调用（代理捕获）",
+    "浏览器对话（扩展捕获）"
+  ],
+  "output": "Web Dashboard | HTML 报告 | 智能分析建议",
+  "use_cases": [
+    "监控 AI 编程对话的 token 消耗",
+    "分析高输入低输出的浪费场景",
+    "追踪每日 AI 使用费用",
+    "获取精准的模型配置建议",
+    "优化对话策略降低成本",
+    "团队多人部署、各自监控"
+  ],
+  "conflicts": [],
+  "last_updated": "2026-06-01"
+}

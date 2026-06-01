@@ -1,0 +1,11 @@
+__pycache__/
+.venv/
+.pytest_cache/
+*.pyc
+*.db
+*.db-shm
+*.db-wal
+*.html
+test_data/*.json
+!test_data/sample_openclaw.json
+token_report.html
