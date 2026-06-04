@@ -9,10 +9,9 @@ _自动生成的技能清单。新增技能时更新此文件。_
 #### 📊 WBS 任务分解
 | 技能 | 版本 | 输出 | 使用场景 | 状态 |
 |------|------|------|---------|------|
-| `wbs-skill` | v2.0 | 单 sheet Excel | 快速分解，白名单学习 | ✅ 活跃 |
+| `wbs-skill` | v5.0 | Excel（9列/11列） | WBS 任务分解 + 工作量估算 | ✅ 活跃 |
 | `task-decomposer` | v3.3 | 任务列表（文本） | 日常任务分解 | ✅ 活跃 |
 | `wbs-validator` | v1.0 | 验证报告 | WBS 质量验证 | ✅ 活跃 |
-| `java-wbs-decomposition` | v3.2 | 6 个 sheet Excel | 正式项目，完整分工 | ⚠️ 已归档（目录不存在） |
 
 #### 🤖 AI 辅助
 | 技能 | 版本 | 输出 | 使用场景 |
@@ -35,6 +34,7 @@ _自动生成的技能清单。新增技能时更新此文件。_
 | `image-to-3d` | v1.0 | 3D 效果图片 | 图片转 3D |
 | `daily-news-digest` | v1.0 | Markdown | 每日新闻简报 |
 | `searxng` | v1.0 | 搜索结果 | 隐私搜索 |
+| `token-watcher` | v1.3 | Web Dashboard / HTML 报告 | AI 对话 Token 监控分析 |
 
 ---
 
@@ -70,13 +70,7 @@ _自动生成的技能清单。新增技能时更新此文件。_
 
 ```
 ⚠️ 检测到功能相似的技能：
-- java-wbs-decomposition
-- wbs-skill
-
-区别：
-- 输出格式不同（6 个 sheet vs 单 sheet）
-- 使用场景不同（正式项目 vs 快速分解）
-- 白名单学习（不支持 vs 支持）
+（当前无冲突）
 ```
 
 ---
@@ -100,13 +94,13 @@ _自动生成的技能清单。新增技能时更新此文件。_
 ## 快速选择指南
 
 ### 需要 WBS 任务分解？
-- **正式项目，需要完整分工** → `java-wbs-decomposition`
-- **快速分解，需要白名单学习** → `wbs-skill`
+- **WBS 任务分解** → `wbs-skill`
+- **日常任务分解** → `task-decomposer`
 - **验证 WBS 质量** → `wbs-validator`
 
 ### 需要技术方案验证？
 - **验证规范性** → `tech-doc-validator`
-- **生成 WBS** → `java-wbs-decomposition` 或 `wbs-skill`
+- **生成 WBS** → `wbs-skill`
 
 ### 需要代码相关？
 - **代码审查** → `code-reviewer`
@@ -117,7 +111,10 @@ _自动生成的技能清单。新增技能时更新此文件。_
 - **每日新闻简报** → `daily-news-digest`
 - **美联储政策** → `fed-policy-tracker`
 
+### 需要 Token 监控？
+- **监控 AI 对话 Token** → `token-watcher`
+
 ---
 
 _此文件由 OpenClaw 自动维护，新增技能时更新。_
-_最后更新：2026-04-21_
+_最后更新：2026-06-05_

@@ -316,6 +316,7 @@ def generate_wbs(
     require_confirm: bool = True,
     mode: str = "v4",
     debug_json_path: Optional[str] = None,
+    estimate: bool = False,
 ) -> str:
     """一键生成 WBS 任务分解
 
@@ -347,7 +348,7 @@ def generate_wbs(
         输出文件路径
     """
     if mode == "v4":
-        return generate_wbs_v4(file_path, output_dir, section_template, auto_learn, require_confirm, debug_json_path)
+        return generate_wbs_v4(file_path, output_dir, section_template, auto_learn, require_confirm, debug_json_path, estimate)
     else:
         return generate_wbs_v3(file_path, output_dir, section_template, auto_learn, require_confirm)
 
@@ -359,10 +360,9 @@ def generate_wbs_v4(
     auto_learn: bool = True,
     require_confirm: bool = True,
     debug_json_path: Optional[str] = None,
+    estimate: bool = False,
 ) -> str:
-    """v4.0 WBS 生成（通用化 + 精准溯源）
-
-    数据流：来源定位 → 内容提取 → 模块归组 → 一致性验证 → 输出
+    """v4.0 WBS 生成（通用化 + 精准溯源 + 工作量估算）
 
     Args:
         file_path: 文档文件路径
@@ -443,45 +443,61 @@ def generate_wbs_v4(
 
     for source in sources:
         task_uid += 1
-        content_before_clean = source.raw_text
-        t_task = time.time()
+        content_list = extractor.extract_all(source)
+        is_first_content = True
 
-        # 内容提取
-        content_result = extractor.extract(source)
-        if not content_result:
-            continue
+        for content_result in content_list:
+            content_before_clean = source.raw_text
+            t_task = time.time()
 
-        content_after_clean = content_result.content
+            content_after_clean = content_result.content
 
-        # 模块归组
-        module_result = grouper.group(content_result.content, source.section_path)
+            # 模块归组
+            module_result = grouper.group(content_result.content, source.section_path)
 
-        # 组装任务
-        task = {
-            "任务模块": module_result.module_name,
-            "任务内容": content_result.content,
-            "任务类型": content_result.task_type,
-            "任务来源": source.format_for_excel(),
-            "原文片段": source.raw_text[:100] if source.raw_text else "",
-            "_source_info": source,
-            "_module_result": module_result,
-        }
+            # 组装任务
+            # 步骤派生判定：来源行以"第N步"开头或包含"；第N步"（复合拆分）
+            # 复合拆分产物也保护，但只有含开发动词的拆分部分才标记
+            # 这样"直接查询数据库"（含"查询"）被保护，"判断是否首页请求"（无开发动词）不保护
+            source_starts_step = bool(re.search(r'^第\s*\d+\s*步[：:]', source.raw_text.strip()))
+            source_has_step_chain = bool(re.search(r'[；;]\s*第\s*\d+\s*步[：:]', source.raw_text))
+            if source_has_step_chain and not is_first_content:
+                # 复合拆分的后续部分：只有含开发动词时才标记为步骤派生
+                # 开发动词参考 SourceLocator.TASK_VERBS 中的强动词
+                dev_verbs = ['新增','创建','实现','开发','配置','部署','构建','迁移',
+                             '对接','集成','设计','查询','删除','更新','修改','提供',
+                             '支持','导出','导入','查询']
+                has_dev_verb = any(v in content_result.content for v in dev_verbs)
+                step_derived = has_dev_verb
+            else:
+                step_derived = source_starts_step and is_first_content
+            task = {
+                "任务模块": module_result.module_name,
+                "任务内容": content_result.content,
+                "任务类型": content_result.task_type,
+                "任务来源": source.format_for_excel(),
+                "原文片段": source.raw_text[:100] if source.raw_text else "",
+                "_source_info": source,
+                "_module_result": module_result,
+                "_step_derived": step_derived,
+            }
+            is_first_content = False
 
-        # 一致性验证
-        validation = checker.verify(task)
-        task_validation = validation  # 记录验证结果
+            # 一致性验证
+            validation = checker.verify(task)
+            task_validation = validation  # 记录验证结果
 
-        if not validation.is_valid and validation.confidence < 0.2:
-            logger.debug(f"跳过低置信度任务: {task['任务内容']} ({validation.confidence:.2f})")
-            continue
+            if not validation.is_valid and validation.confidence < 0.2:
+                logger.debug(f"跳过低置信度任务: {task['任务内容']} ({validation.confidence:.2f})")
+                continue
 
-        # 设置验证状态
-        if not validation.is_valid:
-            task['验证状态'] = 'FAIL'
-        elif validation.issues:
-            task['验证状态'] = 'WARN'
-        else:
-            task['验证状态'] = 'PASS'
+            # 设置验证状态
+            if not validation.is_valid:
+                task['验证状态'] = 'FAIL'
+            elif validation.issues:
+                task['验证状态'] = 'WARN'
+            else:
+                task['验证状态'] = 'PASS'
 
         task['处理时间(ms)'] = round((time.time() - t_task) * 1000, 1)
 
@@ -565,7 +581,29 @@ def generate_wbs_v4(
     total_issues = sum(len(v) for v in validation_results.values())
     print(f'   验证完成：{total_issues} 个问题')
 
-    # 7. 按模块分组排序
+    # 7. 任务类型分类（v4.1 新增：LLM 批量分类 + 关键词回退）
+    print('🏷️  任务类型分类...')
+    t0 = time.time()
+    from src.type_classifier import TypeClassifier, load_type_config
+    try:
+        type_config = load_type_config()
+        classifier = TypeClassifier(config=type_config)
+        tasks = classifier.classify(tasks)
+        type_stats = classifier.get_statistics(tasks)
+        print(f'   类型分布: {type_stats}')
+    except Exception as e:
+        logger.warning(f"类型分类器初始化失败: {e}，保留原始任务类型")
+    timing['classify_types_ms'] = round((time.time() - t0) * 1000, 1)
+
+    # 7.5 工作量估算（可选）
+    if estimate:
+        print('📊  工作量估算...')
+        t0 = time.time()
+        from src.estimator.engine import estimate_tasks
+        tasks = estimate_tasks(tasks)
+        timing['estimate_ms'] = round((time.time() - t0) * 1000, 1)
+
+    # 8. 按模块分组排序
     tasks = _sort_tasks_by_module(tasks)
 
     # 8. 生成任务 ID 和依赖
@@ -1316,8 +1354,50 @@ if __name__ == '__main__':
     parser.add_argument('--export', help='导出用户白名单到指定路径')
     parser.add_argument('--import', dest='import_path', help='导入用户白名单')
     parser.add_argument('--stats', action='store_true', help='显示统计信息')
+    parser.add_argument('--estimate', action='store_true', help='启用人天数估算（v4 模式）')
+    parser.add_argument('--calibrate-file', help='批量录入实际工时（JSON 文件路径）')
+    parser.add_argument('--calibration-stats', action='store_true', help='显示校准统计')
 
     args = parser.parse_args()
+
+    # 校准相关命令（无需文档文件）
+    if args.calibration_stats:
+        try:
+            from src.estimator.calibrator import get_stats
+            stats = get_stats()
+            print()
+            print('📊 校准统计')
+            print(f'   总记录数: {stats["total_records"]}')
+            print(f'   最后更新: {stats["last_updated"]}')
+            print()
+            if stats['by_type']:
+                print(f'   {"任务类型":<16} {"记录数":>6} {"因子":>6} {"精度":>6} {"说明"}')
+                print(f'   {"─"*60}')
+                for ttype, info in sorted(stats['by_type'].items()):
+                    print(f'   {ttype:<16} {info["record_count"]:>6} '
+                          f'{info["factor"]:>6} {info["precision"]:>4.0%} {info["note"]}')
+            else:
+                print('   暂无校准数据')
+            print()
+        except ImportError as e:
+            print(f'❌ 无法加载校准模块: {e}')
+            sys.exit(1)
+        sys.exit(0)
+
+    if args.calibrate_file:
+        try:
+            from src.estimator.calibrator import add_calibration_records
+            import json
+            with open(args.calibrate_file, 'r', encoding='utf-8') as f:
+                records = json.load(f)
+            if isinstance(records, dict):
+                records = [records]
+            success, skipped = add_calibration_records(records)
+            print(f'✅ 校准录入完成: 成功 {success} 条, 跳过 {skipped} 条')
+        except (ImportError, json.JSONDecodeError, FileNotFoundError) as e:
+            print(f'❌ 校准录入失败: {e}')
+            sys.exit(1)
+        sys.exit(0)
 
     if args.stats:
         show_stats()
@@ -1343,4 +1423,5 @@ if __name__ == '__main__':
         require_confirm=not args.no_confirm,
         mode=args.mode,
         debug_json_path=args.debug_json,
+        estimate=args.estimate,
     )

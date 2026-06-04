@@ -263,9 +263,16 @@ class ModuleGrouper:
                     best_module = module
 
             # 子串匹配：白名单关键词是内容的子串，或内容是白名单关键词的子串
+            # 限制：仅当双方长度相近时触发（长度差 < 50%），防止长文本被短关键词误匹配
             for kw in keywords:
                 if len(kw) >= 4:  # 至少 4 字才算有效匹配
                     if kw in content or content in kw:
+                        kw_len, content_len = len(kw), len(content)
+                        min_len = min(kw_len, content_len)
+                        max_len = max(kw_len, content_len)
+                        # 长度差超过 50% 不触发子串匹配（避免长文本包含短关键词的误匹配）
+                        if max_len > min_len * 1.5:
+                            continue
                         sub_score = max(best_score, 0.5)
                         if sub_score > best_score:
                             best_score = sub_score
@@ -312,6 +319,23 @@ class ModuleGrouper:
             or (len(best.module_name) <= 3 and best.match_source == 'section')
         )
         if is_standard:
+            # 策略 A：section 匹配到有意义的章节名时优先使用
+            # 章节名通常比通用模块名更精准（如"1备份开关状态" > "数据库模块"）
+            if section_result.module_name and section_result.confidence >= 0.4:
+                sec_name = section_result.module_name
+                # 只有章节名不是标准模块名且有一定长度时才视为有效
+                if sec_name not in standard_modules and len(sec_name) >= 4:
+                    old_best = best.module_name
+                    best = ModuleResult(
+                        module_name=section_result.module_name,
+                        confidence=section_result.confidence,
+                        match_source=section_result.match_source,
+                        conflict=best.conflict,
+                        conflict_detail=best.conflict_detail,
+                    )
+                    logger.debug(f"章节覆盖模块名：{old_best} → {best.module_name}（来源章节）")
+
+            # 策略 B：内容中包含更精确的接口/功能实体名时覆盖
             content_text = getattr(self, '_last_task_content', '')
             entity_match = re.search(
                 r'(查询|创建|新增|更新|删除|修改|复用|调用|集成|提供|实现)'
@@ -330,10 +354,16 @@ class ModuleGrouper:
                     best.confidence = min(best.confidence + 0.1, 0.95)
                     logger.debug(f"精确覆盖模块名：{old_best} → {entity_name}")
 
-        # 白名单匹配的模块名（通常是之前学习到的精确实体名）优先级最高
-        if whitelist_result.confidence >= 0.5:
+        # 白名单匹配的模块名优先级：仅当白名单置信度显著高于其他结果时才覆盖
+        # 降低阈值避免白名单包含关系匹配误覆盖 content/section 结果
+        other_results = [r for r in [content_result, section_result]
+                        if r.module_name and r.module_name != whitelist_result.module_name]
+        max_other = max((r.confidence for r in other_results), default=0)
+        if whitelist_result.confidence >= 0.7 and whitelist_result.confidence > max_other:
             best = whitelist_result
             best.conflict = best.conflict or len(modules_found) > 1
+            if other_results:
+                logger.debug(f"白名单覆盖：'{best.module_name}' > {'/'.join(r.match_source for r in other_results)}")
 
         # 兜底
         if not best.module_name:

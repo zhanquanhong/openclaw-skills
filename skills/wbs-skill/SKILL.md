@@ -1,15 +1,15 @@
-# wbs-skill - WBS 任务自动分解技能
+# wbs-skill - WBS 任务自动分解技能 + 工作量估算
 
-**版本**: v4.0 (生产级)  
+**版本**: v5.0 (生产级)  
 **创建时间**: 2026-04-16  
-**更新时间**: 2026-05-20  
-**目标**: 输入任意技术方案文档 → 通用化任务分解 → 来源精准可追溯
+**更新时间**: 2026-06-05  
+**目标**: 输入任意技术方案文档 → 通用化任务分解 → 来源精准可追溯 → 工作量估算
 
 ---
 
 ## 🎯 定位
 
-**wbs-skill 只做一件事**：将技术方案文档分解为可执行的任务清单（WBS）。
+**wbs-skill 只做一件事**：将技术方案文档分解为可执行的任务清单（WBS），并支持人天数估算。
 
 **不做的事**：
 - ❌ AI 代码生成
@@ -36,6 +36,9 @@ chmod +x install.sh && ./install.sh
 
 # 自然语言调用
 ./wbs.sh 技术方案.pdf "按周分解，重点标出接口任务"
+
+# 启用人天数估算
+python3 generate_wbs.py 技术方案.pdf --estimate
 
 # 查看统计
 python3 generate_wbs.py --stats
@@ -72,6 +75,8 @@ cd skills/wbs-skill
 | **团队共享** | 支持导出/导入白名单，团队识别率共同提升 |
 | **精准定位** | 任务来源精确到章节 + 行号 |
 | **自动清理** | 输出目录自动保留最新 10 份 |
+| **工作量估算（v5.0）** | 基于内容特征评分，输出人天数和估算范围 |
+| **自我校准（v5.0）** | 录入实际工时自动校准，精度随次数收敛 |
 
 ---
 
@@ -100,35 +105,46 @@ cd skills/wbs-skill
 
 ```
 wbs-skill/
-├── wbs.sh                          # Mac/Linux 入口脚本（新增）
-├── wbs.bat                         # Windows 入口脚本（新增）
-├── install.sh                      # Mac/Linux 安装脚本（新增）
-├── install.bat                     # Windows 安装脚本（新增）
+├── wbs.sh                          # Mac/Linux 入口脚本
+├── wbs.bat                         # Windows 入口脚本
+├── install.sh                      # Mac/Linux 安装脚本
+├── install.bat                     # Windows 安装脚本
 ├── generate_wbs.py                 # 一键生成器（主入口）
 ├── .gitignore                      # 保护用户数据
 ├── README.md                       # 使用说明
-├── README_USAGE.md                 # 详细使用文档
 ├── SKILL.md                        # 本文件
-├── test_phase1.py                  # Phase 1 单元测试
+├── skill.json                      # 技能注册元数据
 ├── config/
 │   ├── section_rules.yaml          # 章节识别模板配置
-│   └── mode.yaml                   # 运行模式配置
+│   └── type_rules.yaml             # 类型规则配置
 ├── data/
 │   ├── whitelist.yaml              # 官方白名单
 │   └── user_whitelist.yaml         # 用户白名单（.gitignore 保护）
-└── src/
-    ├── wbs_cli.py                  # CLI 统一入口（新增）
-    ├── intent_parser.py            # 自然语言意图解析（新增）
-    ├── env_checker.py              # 环境检查（新增）
-    ├── section_engine.py           # 章节推断引擎
-    ├── table_extractor.py          # 表格解析器（多引擎 fallback）
-    ├── document_parser.py          # 多格式文档解析
-    ├── whitelist_manager.py        # 白名单管理器
-    ├── decomposer_v3.py            # 任务分解器
-    ├── parser.py                   # PDF 解析（兼容旧版）
-    ├── rules.py                    # 规则定义
-    ├── templates.py                # 验收标准模板
-    └── output.py                   # Excel 输出
+├── src/
+│   ├── wbs_cli.py                  # CLI 统一入口
+│   ├── intent_parser.py            # 自然语言意图解析
+│   ├── env_checker.py              # 环境检查
+│   ├── section_engine.py           # 章节推断引擎
+│   ├── table_extractor.py          # 表格解析器（多引擎 fallback）
+│   ├── document_parser.py          # 多格式文档解析
+│   ├── whitelist_manager.py        # 白名单管理器
+│   ├── source_locator.py           # v4.0 来源定位引擎
+│   ├── content_extractor.py        # v4.0 内容提取引擎
+│   ├── module_grouper.py           # v4.0 模块归组引擎
+│   ├── consistency_checker.py      # v4.0 一致性验证引擎
+│   ├── estimator/                  # v5.0 工作量估算
+│   │   ├── engine.py               # 估算引擎
+│   │   ├── rules.py                # 内容特征评分规则
+│   │   └── calibrator.py           # 校准系统
+│   ├── decomposer_v3.py            # v3 兼容分解器
+│   ├── parser.py                   # PDF 解析（兼容旧版）
+│   ├── type_classifier.py          # 任务类型分类
+│   ├── rules.py                    # 规则定义
+│   ├── templates.py                # 验收标准模板
+│   └── output.py                   # Excel 输出
+└── tests/
+    ├── test_estimator.py           # v5.0 工作量估算测试
+    └── ...（其余测试在根目录）
 ```
 
 ---
@@ -142,19 +158,58 @@ wbs-skill/
 | **团队共享** | 导出白名单 → 团队成员导入 |
 | **换电脑** | 复制 user_whitelist.yaml 即可 |
 | **自然语言调用** | 加引号传入需求描述 |
+| **工作量估算** | 加 --estimate 参数 |
 
 ---
 
 ## 📊 输出格式
 
-**Excel 包含 7 列**：
+### 基础输出（不加 --estimate）— 9 列
 1. 任务模块
 2. 任务 ID
 3. 任务内容
 4. 任务来源（精确到章节 + 行号）
-5. 依赖
-6. 可验收标准（精确可执行）
-7. 任务类型（🆕新增/🔄更新/📋普通）
+5. 任务类型（LLM 分类 + 关键词回退）
+6. 依赖
+7. 可验收标准（精确可执行）
+8. 验证状态
+9. 处理时间(ms)
+
+### 工作量估算（加 --estimate）— 11 列
+追加 2 列：
+10. **推荐人天数** — 浮点数，保留 1 位小数
+11. **估算范围** — 如 "1.4~2.6"，精度随校准数据收敛
+
+底部追加按模块汇总和项目总计行。
+
+---
+
+## 💡 工作量估算（v5.0）
+
+基于任务内容特征评分，不依赖 LLM，零额外成本。
+
+```bash
+# 启用人天数估算
+python3 generate_wbs.py 技术方案.pdf --estimate
+
+# 批量录入实际工时（校准，提升后续估算精度）
+python3 generate_wbs.py --calibrate-file actual_hours.json
+
+# 查看校准统计
+python3 generate_wbs.py --calibration-stats
+```
+
+估算特征（16 项评分规则）：
+| 特征 | 示例 |
+|------|------|
+| 表设计 | "设计XX表" |
+| 接口开发 | "新增查询接口" |
+| 页面开发 | "开发管理页面" |
+| 中间件集成 | "配置消息队列" |
+| 批量操作 | "数据迁移脚本" |
+| 第三方集成 | "对接微信支付" |
+
+初始精度 ±50%，校准 20+ 次后收窄到 ±15%。
 
 ---
 
@@ -225,6 +280,13 @@ python3 generate_wbs.py 技术方案.pdf --no-user
 ./wbs.sh 技术方案.pdf "只分解后端开发部分"
 ```
 
+### 调试模式
+
+```bash
+# 输出每个任务的完整处理链路
+python3 generate_wbs.py 技术方案.pdf --debug-json debug.json
+```
+
 ---
 
 ## 📈 学习机制
@@ -243,10 +305,4 @@ python3 generate_wbs.py 技术方案.pdf --no-user
 
 ---
 
-## 📖 详细文档
-
-查看 `README_USAGE.md` 获取完整使用指南。
-
----
-
-**wbs-skill v4.0 — 下载即用，拖文档出 Excel，支持自然语言调用**
+**wbs-skill v5.0 — 下载即用，拖文档出 Excel，通用化 + 精准溯源 + 工作量估算**

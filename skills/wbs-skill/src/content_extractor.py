@@ -1,13 +1,12 @@
-"""内容提取引擎 - v4.0
+"""内容提取引擎 - v4.1.1
 
 从来源原文中提取标准化任务内容。
 
 核心能力：
 1. 去除冗余前缀（"需要"、"我们要"）
-2. 截断过长句子（保留动词 + 宾语，截断修饰语）
+2. 按句号分句保留第一句（离线兜底；在线时由 LLM 做语义概括）
 3. 提取接口路径（POST/GET/PUT/DELETE + URL）
-4. 任务类型自动标注（接口/数据库/配置/中间件/功能）
-5. 去重检查（与已有任务对比）
+4. 去重检查（与已有任务对比）
 
 使用方式：
     extractor = ContentExtractor()
@@ -102,6 +101,12 @@ class ContentExtractor:
     # 截断长度阈值
     MAX_CONTENT_LENGTH = 45
 
+    # 复合行拆分模式
+    # 1. 包含 ；第N步：的复合行 → 步骤续行
+    # 2. 包含 ；[a-z]. 的复合行 → 枚举续行（如"；c.后续内容"）
+    COMPOUND_STEP_PATTERN = re.compile(r'[；;]\s*第\s*\d+\s*步[：:]')
+    COMPOUND_ENUM_PATTERN = re.compile(r'[；;]\s*[a-z]\.\s*')
+
     def __init__(self, seen_contents: Optional[Set[str]] = None):
         """初始化
 
@@ -147,8 +152,11 @@ class ContentExtractor:
         # Step 5: 判断任务类型
         task_type = self._infer_task_type(content, raw)
 
+        # Step 5.5: 识别步骤标题（原始行以 第N步 开头，跳过包含关系去重）
+        is_step_title = bool(re.match(r'^第[0-9一二三四五六七八九十百]+[步、]', raw))
+
         # Step 6: 去重检查
-        if self._is_duplicate(content):
+        if self._is_duplicate(content, is_step_title=is_step_title):
             logger.debug(f"重复任务内容：{content}")
             return None
 
@@ -166,6 +174,70 @@ class ContentExtractor:
             api_path=api_info['path'],
             api_method=api_info['method'],
         )
+
+    def extract_all(self, source: SourceInfo) -> List[TaskContent]:
+        """从来源信息中提取所有任务内容（支持复合行拆分）
+
+        如果来源行包含 ";第N步：" 等复合分隔符，拆分为多个独立任务。
+        否则返回单一任务。
+
+        Args:
+            source: 来源定位信息
+
+        Returns:
+            任务内容列表，可能为空
+        """
+        results = []
+        parts = self._split_compound(source.raw_text)
+        for part in parts:
+            # 为每个拆分部分创建独立的新 SourceInfo（避免 copy.copy 共享状态）
+            part_source = SourceInfo(
+                raw_text=part,
+                section_path=source.section_path,
+                page=source.page,
+                line_num=source.line_num,
+                context_before=source.context_before,
+                context_after=source.context_after,
+                file_type=source.file_type,
+                is_table_row=source.is_table_row,
+                table_index=source.table_index,
+                table_row_index=source.table_row_index,
+            )
+            result = self.extract(part_source)
+            if result:
+                results.append(result)
+        return results
+
+    def _split_compound(self, raw_text: str) -> List[str]:
+        """拆分复合行
+
+        将包含 ";第N步：" 或 "；[a-z]. " 分隔符的复合行拆分为多个独立文本。
+
+        示例：
+            "新增接口A；第2步：直接查询数据库" → ["新增接口A", "直接查询数据库"]
+            "第1步：创建接口；第2步：查询数据库" → ["创建接口", "查询数据库"]
+
+        Args:
+            raw_text: 原始文本
+
+        Returns:
+            拆分后的文本列表
+        """
+        text = raw_text.strip()
+        if not text:
+            return []
+
+        # 检查是否有复合分隔符
+        if self.COMPOUND_STEP_PATTERN.search(text):
+            parts = self.COMPOUND_STEP_PATTERN.split(text)
+        elif self.COMPOUND_ENUM_PATTERN.search(text):
+            parts = self.COMPOUND_ENUM_PATTERN.split(text)
+        else:
+            return [text]
+
+        # 清理空部分
+        parts = [p.strip() for p in parts if p.strip()]
+        return parts if parts else [text]
 
     def _remove_redundant_prefix(self, text: str) -> str:
         """去除冗余前缀
@@ -207,11 +279,11 @@ class ContentExtractor:
         return text.strip()
 
     def _truncate_long_sentence(self, text: str) -> str:
-        """截断过长句子
+        """截断过长句子（离线兜底模式）
 
-        策略：
-        1. 遇到截断关键词时截断
-        2. 超过最大长度时按逗号/分号截断
+        在线时由 LLM 做语义概括，此方法仅作为 LLM 不可用时的回退。
+        回退策略：按句号分句，保留第一句完整内容。
+        不再使用逗号/分号/硬字符截断，避免出现"成开关开启"等残句。
 
         Args:
             text: 文本
@@ -219,25 +291,13 @@ class ContentExtractor:
         Returns:
             截断后的文本
         """
-        # 策略 1：截断关键词
-        for kw in self.TRUNCATE_KEYWORDS:
-            idx = text.find(kw)
-            if idx > 0:
-                text = text[:idx].rstrip('，,；; ')
+        # 策略：按句号分句，保留第一句
+        for sep in ['。', '.', '！', '!', '？', '?']:
+            idx = text.find(sep)
+            if 0 < idx < len(text) - 1:
+                # 保留到第一个句号
+                text = text[:idx + 1]
                 break
-
-        # 策略 2：按逗号/分号截断（如果仍然过长）
-        if len(text) > self.MAX_CONTENT_LENGTH:
-            # 尝试在第一个逗号/分号处截断
-            for sep in ['，', ',', '；', ';']:
-                idx = text.find(sep)
-                if 0 < idx < self.MAX_CONTENT_LENGTH:
-                    text = text[:idx]
-                    break
-
-            # 如果还是太长，直接截断
-            if len(text) > self.MAX_CONTENT_LENGTH:
-                text = text[:self.MAX_CONTENT_LENGTH].rstrip('，,；; ')
 
         return text.strip()
 
@@ -348,16 +408,17 @@ class ContentExtractor:
 
         return "功能任务"
 
-    def _is_duplicate(self, content: str) -> bool:
+    def _is_duplicate(self, content: str, is_step_title: bool = False) -> bool:
         """去重检查
 
         去重策略：
         1. 完全相同
-        2. 包含关系（短内容在长内容中）
+        2. 包含关系（短内容在长内容中，步骤标题跳过此项）
         3. 编辑距离 ≤ 3（短内容）
 
         Args:
             content: 任务内容
+            is_step_title: 是否步骤标题（第N步开头），跳过包含关系去重
 
         Returns:
             是否为重复
@@ -367,10 +428,14 @@ class ContentExtractor:
             return True
 
         for seen in self.seen_contents:
-            # 策略 2：包含关系
-            if content in seen or seen in content:
-                return True
-
+            # 策略 2：包含关系（步骤标题不参与，避免被同片段长文本误杀）
+            # 增加长度比约束：短内容长度至少达到长内容的 50%，避免"直接查询数据库"被
+            # "提供分页查询备份记录列表接口，每次请求直接查询数据库"这类长文本误杀
+            if not is_step_title and (content in seen or seen in content):
+                shorter = content if len(content) <= len(seen) else seen
+                longer = seen if len(content) <= len(seen) else content
+                if len(shorter) / len(longer) >= 0.5:
+                    return True
             # 策略 3：编辑距离（仅当内容很短时，阈值 1）
             if len(content) <= 10 and len(seen) <= 10:
                 if self._edit_distance(content, seen) <= 1:

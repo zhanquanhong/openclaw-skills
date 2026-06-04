@@ -1,0 +1,19 @@
+{
+  "name": "wbs-skill",
+  "version": "5.0.0",
+  "category": "WBS 任务分解",
+  "description": "输入任意技术方案文档（PDF/DOCX/MD），自动分解为可执行的任务清单（WBS），来源精准可追溯，支持工作量估算。一键生成 Excel，支持自然语言调用。",
+  "input": [
+    "技术方案文档（PDF/DOCX/Markdown）",
+    "自然语言需求描述（可选过滤）"
+  ],
+  "output": "Excel WBS 任务分解（9列/11列）",
+  "use_cases": [
+    "技术方案文档 → 开发任务分解",
+    "按周/按模块过滤任务",
+    "工作量估算（人天数）",
+    "团队共享白名单"
+  ],
+  "conflicts": ["task-decomposer"],
+  "last_updated": "2026-06-05"
+}

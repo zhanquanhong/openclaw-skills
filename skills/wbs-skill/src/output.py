@@ -6,8 +6,6 @@ from typing import List, Dict, Optional
 import re
 import logging
 
-from src.consistency_checker import ValidationResult
-
 logger = logging.getLogger(__name__)
 
 
@@ -15,9 +13,114 @@ def clean_text(text: str) -> str:
     """清理 Excel 不支持的字符"""
     if not text:
         return ''
-    # 移除 openpyxl 不支持的控制字符
     text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', str(text))
     return text
+
+
+def _has_estimate(tasks: List[Dict]) -> bool:
+    """检测任务列表是否包含估算字段"""
+    return any('推荐人天数' in t for t in tasks)
+
+
+def _append_summary_rows(ws, tasks: List[Dict], headers: List[str], cell_alignment, header_font, thin_border):
+    """在数据行末尾追加模块小计和项目总计
+
+    Args:
+        ws: worksheet 对象
+        tasks: 任务列表（含 推荐人天数 字段时计算小计）
+        headers: 表头列表
+        cell_alignment: 单元格样式
+        header_font: 表头字体
+        thin_border: 边框
+    """
+    if not _has_estimate(tasks):
+        return
+
+    # 按模块分组汇总
+    module_totals: Dict[str, float] = {}
+    module_counts: Dict[str, int] = {}
+    for t in tasks:
+        module = t.get('任务模块', '未分类')
+        days = t.get('推荐人天数', 0)
+        module_totals[module] = module_totals.get(module, 0) + days
+        module_counts[module] = module_counts.get(module, 0) + 1
+
+    # 空一行
+    sep_row = len(tasks) + 2 + 1  # header(1) + data(N) + empty(1)
+    start_row = sep_row + 1
+
+    # 模块小计
+    sort_order = [
+        '用户管理', '权限系统', '配置管理', '数据迁移',
+        '前端', '后端', '接口', '数据库',
+    ]
+    seen_modules = set()
+    for module in sort_order:
+        if module in module_totals and module not in seen_modules:
+            _write_summary_row(ws, start_row, module, module_counts[module],
+                               module_totals[module], headers, cell_alignment, header_font, thin_border)
+            seen_modules.add(module)
+            start_row += 1
+    # 未排序的模块
+    for module, total in sorted(module_totals.items()):
+        if module not in seen_modules:
+            _write_summary_row(ws, start_row, module, module_counts[module],
+                               total, headers, cell_alignment, header_font, thin_border)
+            seen_modules.add(module)
+            start_row += 1
+
+    # 汇总行之间的分隔线
+    summary_font = Font(bold=True, size=11)
+
+    # 项目总计
+    grand_total = sum(module_totals.values())
+    grand_count = sum(module_counts.values())
+    start_row += 0  # no extra blank row
+
+    # 总计行
+    ws.cell(row=start_row, column=1, value='').border = thin_border
+    ws.cell(row=start_row, column=2, value='').border = thin_border
+    ws.cell(row=start_row, column=3, value='项目总计').font = summary_font
+    ws.cell(row=start_row, column=3).alignment = cell_alignment
+    ws.cell(row=start_row, column=3).border = thin_border
+    # 任务数放在 '任务来源' 列（原第4列）
+    ws.cell(row=start_row, column=4, value=f'{grand_count} 个任务').font = summary_font
+    ws.cell(row=start_row, column=4).alignment = cell_alignment
+    ws.cell(row=start_row, column=4).border = thin_border
+    # 标记人天数的列
+    estimate_col = headers.index('推荐人天数') + 1 if '推荐人天数' in headers else 10
+    ws.cell(row=start_row, column=estimate_col, value=grand_total).font = summary_font
+    ws.cell(row=start_row, column=estimate_col).alignment = cell_alignment
+    ws.cell(row=start_row, column=estimate_col).border = thin_border
+    ws.cell(row=start_row, column=estimate_col).number_format = '0.0'
+
+    # 其余填充空
+    for col in range(1, len(headers) + 1):
+        if col not in (3, 4, estimate_col):
+            ws.cell(row=start_row, column=col).border = thin_border
+
+
+def _write_summary_row(ws, row, module, count, total, headers, cell_alignment, header_font, thin_border):
+    """写一行模块小计"""
+    summary_font = Font(bold=True, size=10)
+    ws.cell(row=row, column=1, value='').border = thin_border
+    ws.cell(row=row, column=2, value='').border = thin_border
+    ws.cell(row=row, column=3, value=f'  {module} 小计').font = summary_font
+    ws.cell(row=row, column=3).alignment = cell_alignment
+    ws.cell(row=row, column=3).border = thin_border
+    ws.cell(row=row, column=4, value=f'{count} 个任务').font = summary_font
+    ws.cell(row=row, column=4).alignment = cell_alignment
+    ws.cell(row=row, column=4).border = thin_border
+
+    estimate_col = headers.index('推荐人天数') + 1 if '推荐人天数' in headers else 10
+    ws.cell(row=row, column=estimate_col, value=total).font = summary_font
+    ws.cell(row=row, column=estimate_col).alignment = cell_alignment
+    ws.cell(row=row, column=estimate_col).border = thin_border
+    ws.cell(row=row, column=estimate_col).number_format = '0.0'
+
+    for col in range(1, len(headers) + 1):
+        if col not in (3, 4, estimate_col):
+            ws.cell(row=row, column=col).border = thin_border
 
 
 def export_to_excel(
@@ -54,9 +157,13 @@ def export_to_excel(
         bottom=Side(style='thin')
     )
 
-    # 表头（v4.0）
+    # 表头（v4.0 + v5.0 估算）
+    has_estimate = _has_estimate(tasks)
     headers = ['任务模块', '任务 ID', '任务内容', '任务来源',
                '任务类型', '依赖', '可验收标准', '验证状态', '处理时间(ms)']
+    if has_estimate:
+        headers.extend(['推荐人天数', '估算范围'])
+
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=1, column=col, value=header)
         cell.font = header_font
@@ -94,24 +201,40 @@ def export_to_excel(
         proc_time = task.get('处理时间(ms)', '')
         ws.cell(row=row_idx, column=9, value=str(proc_time) if proc_time else '').alignment = cell_alignment
 
+        # 估算列（如果有）
+        if has_estimate:
+            est_days = task.get('推荐人天数', '')
+            if isinstance(est_days, (int, float)):
+                est_cell = ws.cell(row=row_idx, column=10, value=est_days)
+                est_cell.number_format = '0.0'
+            else:
+                ws.cell(row=row_idx, column=10, value='')
+            est_cell.alignment = cell_alignment
+
+            est_range = task.get('估算范围', '')
+            ws.cell(row=row_idx, column=11, value=clean_text(est_range)).alignment = cell_alignment
+
         # 应用边框
         for col in range(1, len(headers) + 1):
             ws.cell(row=row_idx, column=col).border = thin_border
 
     # 调整列宽
-    ws.column_dimensions['A'].width = 15
-    ws.column_dimensions['B'].width = 10
-    ws.column_dimensions['C'].width = 50
-    ws.column_dimensions['D'].width = 40
-    ws.column_dimensions['E'].width = 40
-    ws.column_dimensions['F'].width = 15
-    ws.column_dimensions['G'].width = 10
-    ws.column_dimensions['H'].width = 35
-    ws.column_dimensions['I'].width = 12
-    ws.column_dimensions['J'].width = 14
+    col_widths = {
+        'A': 15, 'B': 10, 'C': 50, 'D': 40, 'E': 40,
+        'F': 15, 'G': 10, 'H': 35, 'I': 12,
+    }
+    if has_estimate:
+        col_widths['J'] = 14
+        col_widths['K'] = 18
+    for col_letter, width in col_widths.items():
+        ws.column_dimensions[col_letter].width = width
 
-    # 自动筛选
-    ws.auto_filter.ref = ws.dimensions
+    # 底部模块小计和总计行
+    _append_summary_rows(ws, tasks, headers, cell_alignment, header_font, thin_border)
+
+    # 自动筛选（有估算列时排除汇总行）
+    data_end = 1 + len(tasks)
+    ws.auto_filter.ref = f'A1:{chr(64 + len(headers))}{data_end}'
 
     # ==================== Sheet 2: 验证结果 ====================
     if validation_results:
@@ -147,7 +270,6 @@ def export_to_excel(
                 for col in range(1, 5):
                     ws2.cell(row=row_idx, column=col).border = thin_border
 
-                # 状态颜色
                 status_cell = ws2.cell(row=row_idx, column=2)
                 if status == 'FAIL':
                     status_cell.fill = red_fill

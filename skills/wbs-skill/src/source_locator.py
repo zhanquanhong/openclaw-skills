@@ -172,6 +172,20 @@ class SourceLocator:
         'TODO', 'FIXME', 'HACK',
     ]
 
+    # 流程图/时序图硬过滤模式（包含这些模式的行直接不是任务）
+    # 这些模式是流程图/时序图的特有标记，不可能是开发任务
+    DIAGRAM_HARD_FILTERS = [
+        r'alt\s*\[',                    # alt [ — 时序图条件分支（含 ]alt [）
+        r'状态为:',                      # 状态为:还原中 — 纯状态描述
+        r'校验(通过|不通过)',            # 校验通过 / 校验不通过 — 流程分支条件
+        r'删除成功[/或]',                # 删除成功/或... — 流程分支结果
+        r'⻅\d',                        # ⻅3. — 交叉引用
+        r'Key：',                        # Key：backup:delete: — 代码级实现细节
+        r'[；;]\s*[a-z]\.\s*$',           # ；c. 或 ;c. — 枚举后缀残留（行尾）
+        r'[；;][a-z]\.',                  # ；c. — 枚举后缀（行中，后接任意字符）
+        r'^提供[^。，,；;]+功能[。，,；;]',  # 提供...功能。 — 功能散文描述，不是任务
+    ]
+
     # 描述性前缀（以这些词开头的行通常不是任务）
     DESCRIPTIVE_PREFIXES = [
         '为保障', '为了', '旨在', '主要', '核心',
@@ -206,8 +220,25 @@ class SourceLocator:
         r'^[^\x00-\xff]+\s(?:API|API[\s\S]*接口|接口)($|\s*(?:[\u4e00-\u9fff]+)(?:\s|$))', # 中文+API+中文
     ]
 
+    # 流程/数据流描述标记（以这些模式的行是流程图/数据流说明，不是开发任务）
+    # 例如："返回备份记录列表"（数据流输出）、"作为backupFlag返回"（数据转换）
+    # 例外：行中包含"新增/创建/实现/开发/配置/设计"等强开发动词时不降分
+    FLOW_DESCRIPTION_PATTERNS = [
+        r'作为\w{1,20}返回',            # 作为XX返回（数据流输出）
+        r'作为\w{1,20}输出',            # 作为XX输出
+        r'^返回\w*(?:列表|记录|数据|结果|信息|对象|数据对象|字段|状态)',  # 返回XX列表/记录（输出描述）
+        r'^支持\w*(?:分页|分⻚)',       # 支持分页XX（功能点说明）
+    ]
+
+    # 原始变量名模式（行中包含 snake_case/camelCase 变量名且夹杂中文，通常是数据流描述）
+    # 例如："查询algorithm_open_claw_user表backup_flag字段"、"user_id回传"
+    RAW_VAR_PATTERN = re.compile(
+        r'[\u4e00-\u9fff][a-z_][\w]{1,30}|'  # 中文紧接英文变量（中文+变量名）
+        r'[a-z]+_\w+[\u4e00-\u9fff]'         # snake_case变量紧接中文（backup_flag字段）
+    )
+
     # 段落合并配置：连续任务行间距 <= 此值则合并为一个复合任务
-    PARAGRAPH_MERGE_GAP = 1  # 连续行号差 <= 1 即合并
+    PARAGRAPH_MERGE_GAP = 0  # 不进行段落合并（复合拆分由 content_extractor 的；第N步模式处理）
 
     # 工作流枚举项（a. b. c. d. e. f. 等，只有同时包含技术描述才可能是任务）
     ENUM_PATTERNS = [
@@ -234,6 +265,18 @@ class SourceLocator:
         self.context_lines = context_lines
         self._in_code_block = False
 
+    # 流程图区域检测：后N行内有这些模式标记的行为流程图，其内容不纳入任务
+    FLOWCHART_ZONE_SCAN_LINES = 8  # 扫描范围（前/后行数）
+    FLOWCHART_MARKERS = [
+        r'alt\s*\[',                 # alt [ — 时序图条件分支
+        r'^\[\w+=\d+\]',             # [backup_flag=1] at line start — 条件标记
+        r'-->>',                     # 时序图消息箭头
+        r'^时序图：?$',              # 时序图： — 章节标记
+        # 数据流输出：仅匹配纯数据流行（行首以"返回"开头，且后接纯数据描述）
+        # 不匹配"•业务目标：分页返回..."这类任务描述行
+        r'^返回\w*(?:列表|记录|数据|结果|信息|对象)',  # 返回XX — 数据流输出
+    ]
+
     def locate_all(
         self,
         lines: List[str],
@@ -252,6 +295,22 @@ class SourceLocator:
         Returns:
             来源信息列表
         """
+        # 预计算流程图区域（行号范围）
+        # 检测逻辑：如果某行匹配流程图标记，其前后 FLOWCHART_ZONE_SCAN_LINES 行内
+        # 的所有行标记为流程图区域，这些区域内的任务行将被降低权重或过滤
+        total_lines = len(lines)
+        in_flowchart = [False] * total_lines
+        for line_num_0, line in enumerate(lines):
+            stripped = line.strip()
+            for marker in self.FLOWCHART_MARKERS:
+                if re.search(marker, stripped):
+                    # 标记前后 N 行为流程图区域
+                    start = max(0, line_num_0 - self.FLOWCHART_ZONE_SCAN_LINES)
+                    end = min(total_lines, line_num_0 + self.FLOWCHART_ZONE_SCAN_LINES + 1)
+                    for i in range(start, end):
+                        in_flowchart[i] = True
+                    break
+
         sources = []
 
         for line_num_0, line in enumerate(lines):
@@ -269,6 +328,15 @@ class SourceLocator:
             # 判断是否为任务行
             if not self._is_task_line(stripped):
                 continue
+
+            # 流程图区域过滤：在流程图区域内的步骤式行（第N步），且不含开发动词，不纳入任务
+            # 例如时序图中的"第1步：接收请求"不是开发任务
+            if in_flowchart[line_num_0]:
+                strong_dev = ['新增','创建','实现','开发','配置','部署','构建','迁移','对接','集成','设计']
+                has_strong_dev = any(v in stripped for v in strong_dev)
+                is_step_line = bool(re.search(r'第\s*\d+\s*步', stripped))
+                if is_step_line and not has_strong_dev:
+                    continue
 
             # 提取上下文
             before = self._extract_context_before(lines, line_num_0)
@@ -367,6 +435,11 @@ class SourceLocator:
         if any(marker in line for marker in self.NON_TASK_MARKERS):
             return False
 
+        # 4.5 流程图/时序图硬过滤
+        for filter_pattern in self.DIAGRAM_HARD_FILTERS:
+            if re.search(filter_pattern, line):
+                return False
+
         # 5. 纯数字/纯符号行
         if re.match(r'^[\d\s\.\-\|]+$', line):
             return False
@@ -399,9 +472,21 @@ class SourceLocator:
         # === 浮动评分 ===
         score = self._score_task_line(line)
 
+        # === 原始变量名检测（必须在 _match_task_pattern 之前，影响 bonus 判定）===
+        # 原始变量名：中文 + snake_case/camelCase 变量名同时出现 → 数据流描述
+        # 例如："查询algorithm_open_claw_user表backup_flag字段"
+        strong_dev_verbs = ['新增', '创建', '实现', '开发', '设计', '配置', '部署', '构建', '迁移', '对接', '集成']
+        has_strong_dev = any(v in line for v in strong_dev_verbs)
+        has_raw_var = False
+        if not has_strong_dev:
+            if self.RAW_VAR_PATTERN.search(line):
+                has_raw_var = True
+                score -= 2
+
         # 高置信度快速通道：_match_task_pattern 命中直接 +2
+        # 但检测到原始变量名时不加分（数据流描述不是任务）
         has_strong_desc = any(line.startswith(p) for p in self.DESCRIPTIVE_PREFIXES)
-        if not has_strong_desc and self._match_task_pattern(line):
+        if not has_strong_desc and not has_raw_var and self._match_task_pattern(line):
             score += 2
 
         # 描述性前缀降低分数
@@ -428,9 +513,26 @@ class SourceLocator:
 
         # 包含 = 符号（变量赋值）降分
         if '=' in line and not line.strip().startswith('POST') and not line.strip().startswith('GET'):
-            # 检查是不是 HTTP query 参数（如 ?page=1）
-            if '?' not in line:
+            # 判断是 URL 查询参数（?page=1，? 在 = 之前）还是 SQL 参数（user_id=?，= 在 ? 之前）
+            eq_pos = line.find('=')
+            q_pos = line.find('?')
+            is_url_param = q_pos >= 0 and q_pos < eq_pos  # ?page=1 模式
+            if not is_url_param:
                 score -= 2
+
+        # === 流程/数据流描述降分 ===
+        # 匹配"作为XX返回"、"返回XX列表"、"支持XX功能"等非任务模式
+        # 对于带枚举前缀（a. c. ◦）的项，同时检查剥离前缀后的内容
+        # 例如 "c.支持分⻚查询" → 剥离后 "支持分⻚查询" → 匹配 ^支持\w*(?:分页|分⻚)
+        if not has_strong_dev:
+            if is_enum:
+                stripped_for_flow = re.sub(r'^[a-f][\.\)]\s*|^◦', '', line).strip()
+            else:
+                stripped_for_flow = line
+            for flow_pattern in self.FLOW_DESCRIPTION_PATTERNS:
+                if re.search(flow_pattern, line) or re.search(flow_pattern, stripped_for_flow):
+                    score -= 3
+                    break
 
         return score >= 2
 
