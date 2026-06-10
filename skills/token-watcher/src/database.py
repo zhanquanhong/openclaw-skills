@@ -62,6 +62,8 @@ CREATE INDEX IF NOT EXISTS idx_msg_conv      ON messages(conversation_id);
 # 新增列的迁移列表：需要给已有表增加的列
 MIGRATIONS = [
     "ALTER TABLE conversations ADD COLUMN context_info TEXT DEFAULT '{}'",
+    "ALTER TABLE conversations ADD COLUMN total_cache_read_tokens INTEGER DEFAULT 0",
+    "ALTER TABLE conversations ADD COLUMN api_call_count INTEGER DEFAULT 0",
     "ALTER TABLE proxy_logs ADD COLUMN channel TEXT DEFAULT ''",
     "ALTER TABLE proxy_logs ADD COLUMN response_time_ms INTEGER DEFAULT 0",
 ]
@@ -127,27 +129,33 @@ class Database:
         _is_new_ctx_empty = context_info.strip() in ("{}", "", "null")
 
         update_cols = [
-            "total_input_tokens  = excluded.total_input_tokens",
-            "total_output_tokens = excluded.total_output_tokens",
-            "input_output_ratio  = excluded.input_output_ratio",
-            "cost_estimate       = excluded.cost_estimate",
-            "accuracy            = excluded.accuracy",
-            "end_time            = excluded.end_time",
-            "updated_at          = datetime('now', 'localtime')",
+            "model                    = excluded.model",
+            "title                    = excluded.title",
+            "source_id                = excluded.source_id",
+            "total_input_tokens        = excluded.total_input_tokens",
+            "total_output_tokens       = excluded.total_output_tokens",
+            "total_cache_read_tokens   = excluded.total_cache_read_tokens",
+            "api_call_count            = excluded.api_call_count",
+            "input_output_ratio        = excluded.input_output_ratio",
+            "cost_estimate             = excluded.cost_estimate",
+            "accuracy                  = excluded.accuracy",
+            "end_time                  = excluded.end_time",
+            "updated_at                = datetime('now', 'localtime')",
         ]
         if not _is_new_ctx_empty:
-            update_cols.insert(4, "message_count = excluded.message_count")
-            update_cols.insert(6, "context_info  = excluded.context_info")
+            update_cols.insert(7, "message_count = excluded.message_count")
+            update_cols.insert(9, "context_info  = excluded.context_info")
 
         set_clause = ",\n            ".join(update_cols)
         sql = f"""
         INSERT INTO conversations
             (id, source, source_id, title, model,
-             total_input_tokens, total_output_tokens,
+             total_input_tokens, total_output_tokens, total_cache_read_tokens,
+             api_call_count,
              input_output_ratio, message_count,
              cost_estimate, accuracy,
              context_info, start_time, end_time, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))
         ON CONFLICT(id) DO UPDATE SET
             {set_clause};
         """
@@ -164,6 +172,8 @@ class Database:
             conv.get("model", ""),
             total_in,
             total_out,
+            conv.get("total_cache_read_tokens", 0),
+            conv.get("api_call_count", 0),
             ratio,
             conv.get("message_count", 0),
             conv.get("cost_estimate", 0.0),
@@ -209,6 +219,8 @@ class Database:
                 COUNT(*)                          AS total_conversations,
                 COALESCE(SUM(total_input_tokens), 0)   AS total_input,
                 COALESCE(SUM(total_output_tokens), 0)  AS total_output,
+                COALESCE(SUM(total_cache_read_tokens), 0) AS total_cache_read,
+                COALESCE(SUM(api_call_count), 0)        AS total_api_calls,
                 COALESCE(SUM(cost_estimate), 0)        AS total_cost,
                 COALESCE(SUM(message_count), 0)        AS total_messages
             FROM conversations

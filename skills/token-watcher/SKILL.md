@@ -20,11 +20,11 @@ python3 -m src.main report
 
 ## 数据流
 ```
-OpenClaw sessions API → 采集器 → SQLite 数据库
-                                      ↓
-                            统计分析 → Web Dashboard
-                                      ↓
-                            报告生成 → HTML 报告
+OpenClaw 会话文件 → 采集器(直接解析JSONL) → SQLite 数据库
+(.jsonl transcript)     (usage 逐API调用)       ↓
+                                         统计分析 → Web Dashboard
+                                                   ↓
+                                          报告生成 → HTML 报告
 ```
 
 ## 输出
