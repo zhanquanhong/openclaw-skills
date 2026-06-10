@@ -9,3 +9,4 @@ __pycache__/
 test_data/*.json
 !test_data/sample_openclaw.json
 token_report.html
+*.bak
